@@ -5,11 +5,14 @@
 
 using namespace std;
 
-LRESULT _stdcall application_loop(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+bool alive = true;
+
+LRESULT CALLBACK application_loop(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message)
     {
     case WM_DESTROY:
+        alive = false;
         break;
 
     case WM_PAINT:
@@ -17,6 +20,9 @@ LRESULT _stdcall application_loop(HWND window, UINT message, WPARAM wparam, LPAR
 
         BeginPaint(window, &ps);
         EndPaint(window, &ps);
+        break;
+
+    case WM_SIZE:
         break;
 
     default:
@@ -79,7 +85,7 @@ int main(int argc, char *argv[])
 
     window = CreateWindowEx(exstyle, "planets 3d window", "OpenGL planets", style, view.left, view.top, view.right - view.left, view.bottom - view.top, NULL, NULL, instance, NULL);
 
-    if (window == 0)
+    if (window == NULL)
     {
         cerr << "Could not create window" << endl;
 
@@ -92,7 +98,16 @@ int main(int argc, char *argv[])
     UpdateWindow(window);
 
     /* Do stuff */
-    /* ... */
+    MSG msg;
+
+    while (alive)
+    {
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
 
 cleanup_window:
     /* Destroy window */
