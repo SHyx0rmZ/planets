@@ -181,6 +181,21 @@ BIND(GLubyte *, GLenum, glGetString);
         return true;
     }
 
+    bool init_context()
+    {
+        wglCreateContextAttribs = reinterpret_cast<HGLRC (_stdcall *)(HDC, HGLRC, const int *)>(wglGetProcAddress("wglCreateContextAttribsARB"));
+        wglChoosePixelFormat = reinterpret_cast<BOOL (_stdcall *)(HDC, const int *, const FLOAT *, UINT, int *, UINT *)>(wglGetProcAddress("wglChoosePixelFormatARB"));
+
+        if (!wglCreateContextAttribs || !wglChoosePixelFormat)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
     void cleanup()
     {
         FreeLibrary(opengl);
@@ -224,6 +239,10 @@ int main(int argc, char *argv[])
     HWND window;
     unsigned long int style = WS_POPUP;
     unsigned long int exstyle = WS_EX_APPWINDOW;
+
+    /* Context */
+    HDC device;
+    HGLRC context;
 
     /* Bindings */
     if (gl::init() == false)
@@ -284,11 +303,117 @@ int main(int argc, char *argv[])
         goto cleanup_window;
     }
 
+    device = GetDC(window);
+
+    if (device == 0)
+    {
+        cerr << "Could not get device context" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_window;
+    }
+
+    /* Create context */
+    PIXELFORMATDESCRIPTOR pixel;
+
+    ZeroMemory(&pixel, sizeof(PIXELFORMATDESCRIPTOR));
+
+    pixel.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    pixel.nVersion = 1;
+    pixel.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pixel.iPixelType = PFD_TYPE_RGBA;
+    pixel.cColorBits = 24;
+    pixel.cDepthBits = 8;
+    pixel.iLayerType = PFD_MAIN_PLANE;
+
+    int format = ChoosePixelFormat(device, &pixel);
+
+    if (format <= 0)
+    {
+        cerr << "Could not choose pixel format" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_window;
+    }
+
+    if (SetPixelFormat(device, format, &pixel) == FALSE)
+    {
+        cerr << "Could not set pixel format" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_window;
+    }
+
+    context = gl::wglCreateContext(device);
+
+    if (context == 0)
+    {
+        cerr << "Could not create OpenGL context" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_window;
+    }
+
+    if (gl::wglMakeCurrent(device, context) == 0)
+    {
+        cerr << "Could not set current rendering context" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_context;
+    }
+
+    if (gl::init_context() == false)
+    {
+        cerr << "Could not bind entrypoint for advanced context creation" << endl;
+
+        goto skip_context;
+    }
+
+    const int attributes[] = {
+        WGL_CONTEXT_MAJOR_VERSION, 2,
+        WGL_CONTEXT_MINOR_VERSION, 1,
+        WGL_CONTEXT_PROFILE_MASK, WGL_CONTEXT_CORE_PROFILE_BIT,
+        0
+    };
+
+    gl::wglMakeCurrent(device, NULL);
+    gl::wglDeleteContext(context);
+
+    context = wglCreateContextAttribs(device, 0, attributes);
+
+    if (context == 0)
+    {
+        cerr << "Could not create OpenGL context" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_window;
+    }
+
+    if (gl::wglMakeCurrent(device, context) == 0)
+    {
+        cerr << "Could not set current rendering context" << endl;
+
+        exit = EXIT_FAILURE;
+
+        goto cleanup_context;
+    }
+
+skip_context:
+
     ShowWindow(window, SW_SHOW);
     UpdateWindow(window);
 
     /* Do stuff */
     MSG msg;
+
+    cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
+    cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
 
     while (alive)
     {
@@ -298,6 +423,10 @@ int main(int argc, char *argv[])
             DispatchMessage(&msg);
         }
     }
+
+cleanup_context:
+    gl::wglMakeCurrent(device, NULL);
+    gl::wglDeleteContext(context);
 
 cleanup_window:
     /* Destroy window */
