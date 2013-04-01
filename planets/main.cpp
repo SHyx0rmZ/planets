@@ -377,7 +377,6 @@ int main(int argc, char *argv[])
     const int attributes[] = {
         WGL_CONTEXT_MAJOR_VERSION, 2,
         WGL_CONTEXT_MINOR_VERSION, 1,
-        WGL_CONTEXT_PROFILE_MASK, WGL_CONTEXT_CORE_PROFILE_BIT,
         0
     };
 
