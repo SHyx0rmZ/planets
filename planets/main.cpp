@@ -44,7 +44,7 @@ namespace gl
     typedef signed char GLbyte;
     typedef signed short GLshort;
     typedef signed int GLint;
-    typedef signed int GLsize;
+    typedef signed int GLsizei;
     typedef unsigned char GLubyte;
     typedef unsigned short GLushort;
     typedef unsigned int GLuint;
@@ -135,28 +135,41 @@ namespace gl
         return proc;
     }
 
-#define BIND(result, parameters, name) \
-    typedef result (APIENTRYP BIND_GL_##name)(parameters); \
+#define BIND(result, name, ...) \
+    typedef result (APIENTRYP BIND_GL_##name)(__VA_ARGS__); \
     GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bind(#name, false));
 
 #define BINDOPT(result, parameters, name) \
     typedef result (APIENTRYP BIND_GL_##name)(parameters); \
     GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bind(#name, true));
 
-#define BINDARB(result, parameters, name, namearb) \
-    typedef result (APIENTRYP BIND_GL_##name)(parameters); \
+#define BINDARB(result, name, namearb, ...) \
+    typedef result (APIENTRYP BIND_GL_##name)(__VA_ARGS__); \
     GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bindarb(#name, #namearb));
 
-BIND(GLvoid, GLenum, glEnable);
-BIND(GLvoid, GLenum, glDisable);
+BIND(GLvoid, glEnable, GLenum);
+BIND(GLvoid, glDisable, GLenum);
 #define GL_TEXTURE_2D 0x0DE1
 #define GL_DEPTH_TEST 0x0B71
 
-BIND(GLubyte *, GLenum, glGetString);
+BIND(GLubyte *, glGetString, GLenum);
 #define GL_RENDERER                 0x1F01
 #define GL_VENDOR                   0x1F00
 #define GL_VERSION                  0x1F02
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
+
+BIND(GLvoid, glClearColor, GLclampf, GLclampf, GLclampf, GLclampf);
+BIND(GLvoid, glClear, GLbitfield);
+#define GL_COLOR_BUFFER_BIT 0x4000
+#define GL_DEPTH_BUFFER_BIT 0x0100
+
+BINDARB(GLvoid, glGenBuffers, glGenBuffersARB, GLsizei, GLuint *);
+BIND(GLvoid, glDeleteBuffers, GLsizei, const GLuint *);
+BIND(GLvoid, glBindBuffer, GLenum, GLuint);
+#define GL_ARRAY_BUFFER         0x8892
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+BIND(GLvoid, glBufferData, GLenum, GLsizeiptr, const GLvoid *, GLenum);
+#define GL_STATIC_DRAW 0x88E4
 
     bool init()
     {
@@ -414,6 +427,14 @@ skip_context:
     cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
     cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
 
+    GLuint buffers[2];
+
+    glGenBuffers(2, buffers);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
+    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+
     while (alive)
     {
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -421,6 +442,8 @@ skip_context:
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        glClear(GL_COLOR_BUFFER_BIT);
     }
 
 cleanup_context:
