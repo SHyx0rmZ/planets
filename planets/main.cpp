@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <Windows.h>
+#include <map>
 
 using namespace std;
 
@@ -10,6 +11,7 @@ bool alive = true;
 namespace gl
 {
     HMODULE opengl = NULL;
+    multimap<void *, const char *> *imports = NULL;
 
     HGLRC (_stdcall *wglCreateContext)(HDC);
     BOOL (_stdcall *wglMakeCurrent)(HDC, HGLRC);
@@ -67,85 +69,24 @@ namespace gl
 #define GL_FALSE 0
 #define GL_TRUE  1
 
-    PROC bind(LPCSTR name, bool optional)
+    void *register_import(void *pointer, const char *name)
     {
-        if (opengl == NULL)
+        if (imports == NULL)
         {
-            opengl = LoadLibraryEx("OpenGL32.dll", NULL, 0);
+            imports = new multimap<void *, const char *>;
         }
 
-        if (opengl == NULL)
+        if (imports == NULL)
         {
-            cerr << "Failed to open OpenGL32.dll while searching for entrypoint of " << name << endl;
-
-            return NULL;
+            throw runtime_error("OpenGL binding");
         }
 
-        if (wglGetProcAddress == NULL)
-        {
-            wglGetProcAddress = reinterpret_cast<PROC (_stdcall *)(LPCSTR)>(GetProcAddress(opengl, "wglGetProcAddress"));
-        }
-
-        PROC proc = GetProcAddress(opengl, name);
-
-        if (proc == NULL && wglGetProcAddress != NULL)
-        {
-            proc = wglGetProcAddress(name);
-        }
-
-        if (proc == NULL)
-        {
-            cerr << "Could not find entrypoint for " << name << endl;
-
-            if (!optional)
-            {
-                throw runtime_error("OpenGL binding");
-            }
-        }
-
-        return proc;
-    }
-
-    PROC bindarb(LPCSTR name, LPCSTR namearb)
-    {
-        PROC proc = NULL;
-
-        try
-        {
-            proc = bind(name, false);
-        }
-        catch (runtime_error &e)
-        {
-            if (strncmp(e.what(), "OpenGL binding", 14) != 0)
-            {
-                throw e;
-            }
-        }
-
-        if (proc == NULL)
-        {
-            proc = bind(namearb, false);
-        }
-
-        if (proc != NULL)
-        {
-            cerr << "Falling back to entrypoint for " << namearb << endl;
-        }
-
-        return proc;
+        imports->insert(multimap<void *, const char *>::value_type(pointer, name));
     }
 
 #define BIND(result, name, ...) \
     typedef result (APIENTRYP BIND_GL_##name)(__VA_ARGS__); \
-    GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bind(#name, false));
-
-#define BINDOPT(result, parameters, name) \
-    typedef result (APIENTRYP BIND_GL_##name)(parameters); \
-    GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bind(#name, true));
-
-#define BINDARB(result, name, namearb, ...) \
-    typedef result (APIENTRYP BIND_GL_##name)(__VA_ARGS__); \
-    GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(bindarb(#name, #namearb));
+    GLAPI BIND_GL_##name name = reinterpret_cast<BIND_GL_##name>(register_import(&name, #name));
 
 BIND(GLvoid, glEnable, GLenum);
 BIND(GLvoid, glDisable, GLenum);
@@ -163,7 +104,7 @@ BIND(GLvoid, glClear, GLbitfield);
 #define GL_COLOR_BUFFER_BIT 0x4000
 #define GL_DEPTH_BUFFER_BIT 0x0100
 
-BINDARB(GLvoid, glGenBuffers, glGenBuffersARB, GLsizei, GLuint *);
+BIND(GLvoid, glGenBuffers, GLsizei, GLuint *);
 BIND(GLvoid, glDeleteBuffers, GLsizei, const GLuint *);
 BIND(GLvoid, glBindBuffer, GLenum, GLuint);
 #define GL_ARRAY_BUFFER         0x8892
@@ -175,20 +116,64 @@ BIND(GLvoid, glBufferData, GLenum, GLsizeiptr, const GLvoid *, GLenum);
     {
         if (opengl == NULL)
         {
+            opengl = LoadLibraryEx("OpenGL32.dll", NULL, 0);
+        }
+
+        if (opengl == NULL)
+        {
+            return false;
+        }
+
+        if (wglGetProcAddress == NULL)
+        {
+            wglGetProcAddress = reinterpret_cast<PROC (_stdcall *)(LPCSTR)>(GetProcAddress(opengl, "wglGetProcAddress"));
+        }
+
+        if (wglGetProcAddress == NULL)
+        {
+            FreeLibrary(opengl);
+
             return false;
         }
 
         wglCreateContext = reinterpret_cast<HGLRC (_stdcall *)(HDC)>(GetProcAddress(opengl, "wglCreateContext"));
         wglMakeCurrent = reinterpret_cast<BOOL (_stdcall *)(HDC, HGLRC)>(GetProcAddress(opengl, "wglMakeCurrent"));
         wglDeleteContext = reinterpret_cast<BOOL (_stdcall *)(HGLRC)>(GetProcAddress(opengl, "wglDeleteContext"));
-        wglCreateContextAttribs = reinterpret_cast<HGLRC (_stdcall *)(HDC, HGLRC, const int *)>(wglGetProcAddress("wglCreateContextAttribsARB"));
-        wglChoosePixelFormat = reinterpret_cast<BOOL (_stdcall *)(HDC, const int *, const FLOAT *, UINT, int *, UINT *)>(wglGetProcAddress("wglChoosePixelFormatARB"));
 
         if (!wglCreateContext || !wglMakeCurrent || !wglDeleteContext)
         {
             FreeLibrary(opengl);
 
             return false;
+        }
+
+        return true;
+    }
+
+    bool import()
+    {
+        if (imports != NULL)
+        {
+            for (multimap<void *, const char *>::iterator i = imports->begin(); i != imports->end(); ++i)
+            {
+                PROC *entrypoint = reinterpret_cast<PROC *>(i->first);
+
+                if (*entrypoint == NULL)
+                {
+                    *entrypoint = GetProcAddress(opengl, i->second);
+
+                    if (*entrypoint == NULL)
+                    {
+                        *entrypoint = wglGetProcAddress(i->second);
+                    }
+
+                    if (*entrypoint == NULL)
+                    {
+                        cerr << "Could not find entrypoint for " << i->second << endl;
+
+                    }
+                }
+            }
         }
 
         return true;
@@ -421,6 +406,8 @@ skip_context:
     ShowWindow(window, SW_SHOW);
     UpdateWindow(window);
 
+    gl::import();
+
     /* Do stuff */
     MSG msg;
 
@@ -442,8 +429,6 @@ skip_context:
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-
-        glClear(GL_COLOR_BUFFER_BIT);
     }
 
 cleanup_context:
