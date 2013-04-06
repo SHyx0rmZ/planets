@@ -56,6 +56,7 @@ namespace gl
     typedef double GLdouble;
     typedef double GLclampd;
     typedef void GLvoid;
+    typedef char GLchar;
 #if defined(_M_X64) || defined(__amd64__)
     typedef signed long long GLintptr;
     typedef signed long long GLsizeiptr;
@@ -68,6 +69,7 @@ namespace gl
 
 #define GL_FALSE 0
 #define GL_TRUE  1
+#define GL_NONE  0
 
     void *register_import(void *pointer, const char *name)
     {
@@ -82,6 +84,8 @@ namespace gl
         }
 
         imports->insert(multimap<void *, const char *>::value_type(pointer, name));
+
+        return NULL;
     }
 
 #define BIND(result, name, ...) \
@@ -111,6 +115,36 @@ BIND(GLvoid, glBindBuffer, GLenum, GLuint);
 #define GL_ELEMENT_ARRAY_BUFFER 0x8893
 BIND(GLvoid, glBufferData, GLenum, GLsizeiptr, const GLvoid *, GLenum);
 #define GL_STATIC_DRAW 0x88E4
+
+BIND(GLvoid, glGenVertexArrays, GLsizei, GLuint *);
+BIND(GLvoid, glDeleteVertexArrays, GLsizei, const GLuint *);
+BIND(GLvoid, glBindVertexArray, GLuint);
+BIND(GLvoid, glEnableVertexAttribArray, GLuint);
+BIND(GLvoid, glDisableVertexAttribArray, GLuint);
+BIND(GLvoid, glVertexAttribPointer, GLuint, GLsizei, GLenum, GLboolean, GLsizei, const GLvoid *);
+#define GL_UNSIGNED_INT 0x1405
+#define GL_FLOAT        0x1406
+
+BIND(GLuint, glCreateShader, GLuint);
+#define GL_VERTEX_SHADER   0x8B31
+#define GL_FRAGMENT_SHADER 0x8B30
+BIND(GLvoid, glShaderSource, GLuint, GLsizei, const GLchar **, const GLint *);
+BIND(GLvoid, glCompileShader, GLuint);
+BIND(GLvoid, glDeleteShader, GLuint);
+
+BIND(GLuint, glCreateProgram, void);
+BIND(GLvoid, glAttachShader, GLuint, GLuint);
+BIND(GLvoid, glDetachShader, GLuint, GLuint);
+BIND(GLvoid, glLinkProgram, GLuint);
+BIND(GLvoid, glUseProgram, GLuint);
+BIND(GLvoid, glDeleteProgram, GLuint);
+
+BIND(GLint, glGetAttribLocation, GLuint, const GLchar *);
+BIND(GLint, glGetUniformLocation, GLuint, const GLchar *);
+BIND(GLvoid, glBindFragDataLocation, GLuint, GLuint, const GLchar *);
+
+BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, GLvoid *);
+#define GL_TRIANGLES 0x0004
 
     bool init()
     {
@@ -414,13 +448,68 @@ skip_context:
     cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
     cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
 
-    GLuint buffers[2];
+    GLfloat vertices[] = {
+        -0.5f, -0.5f,  0.0f,
+         0.0f,  0.5f,  0.0f,
+         0.5f, -0.5f,  0.0f
+    };
 
+    GLuint indices[] = {
+        0, 1, 2
+    };
+
+    GLuint buffers[2];
+    GLuint array;
+
+    glGenVertexArrays(1, &array);
+    glBindVertexArray(array);
     glGenBuffers(2, buffers);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint), indices, GL_STATIC_DRAW);
+
+    const GLchar *vertex_shader_src =
+        "in vec3 att_vertex;\n"
+        "\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = vec4(att_vertex, 1.0);\n"
+        "}"
+    ;
+
+    const GLchar *fragment_shader_src =
+        "out vec4 fragcolor;\n"
+        "\n"
+        "void main()\n"
+        "{\n"
+        "    fragcolor = vec4(1.0, 1.0, 1.0, 1.0);\n"
+        "}"
+    ;
+
+    GLint vertex_shader_len = strlen(vertex_shader_src);
+    GLint fragment_shader_len = strlen(fragment_shader_src);
+
+    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint program = glCreateProgram();
+
+    glShaderSource(vertex_shader, 1, &vertex_shader_src, &vertex_shader_len);
+    glShaderSource(fragment_shader, 1, &fragment_shader_src, &fragment_shader_len);
+    glCompileShader(vertex_shader);
+    glCompileShader(fragment_shader);
+    glAttachShader(program, vertex_shader);
+    glAttachShader(program, fragment_shader);
+    glBindFragDataLocation(program, 0, "fragcolor");
+    glLinkProgram(program);
+    glUseProgram(program);
+
+    GLint att_vertex = glGetAttribLocation(program, "att_vertex");
+    
+    glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    glEnableVertexAttribArray(att_vertex);
+
+    glClearColor(0.33f, 0.33f, 0.33f, 1.0f);
 
     while (alive)
     {
@@ -429,7 +518,27 @@ skip_context:
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, NULL);
+
+        SwapBuffers(device);
     }
+
+    cout << "Shutting down" << endl;
+
+    glDisableVertexAttribArray(att_vertex);
+    glUseProgram(GL_NONE);
+    glDetachShader(program, vertex_shader);
+    glDetachShader(program, fragment_shader);
+    glDeleteProgram(program);
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
+    glDeleteBuffers(2, buffers);
+    glBindVertexArray(GL_NONE);
+    glDeleteVertexArrays(1, &array);
 
 cleanup_context:
     gl::wglMakeCurrent(device, NULL);
@@ -442,8 +551,6 @@ cleanup_window:
     UnregisterClass(reinterpret_cast<LPCSTR>(atom), instance);
 
     gl::cleanup();
-
-    cout << "Shutting down" << endl;
 
     return exit;
 }
