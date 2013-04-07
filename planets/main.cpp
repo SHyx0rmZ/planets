@@ -1,8 +1,10 @@
+#define _USE_MATH_DEFINES
 #include <iostream>
 #include <cstdlib>
 #include <stdexcept>
 #include <Windows.h>
 #include <map>
+#include <cmath>
 
 using namespace std;
 
@@ -102,6 +104,7 @@ BIND(GLubyte *, glGetString, GLenum);
 #define GL_VENDOR                   0x1F00
 #define GL_VERSION                  0x1F02
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
+BIND(GLvoid, glViewport, GLint, GLint, GLsizei, GLsizei);
 
 BIND(GLvoid, glClearColor, GLclampf, GLclampf, GLclampf, GLclampf);
 BIND(GLvoid, glClear, GLbitfield);
@@ -142,6 +145,9 @@ BIND(GLvoid, glDeleteProgram, GLuint);
 BIND(GLint, glGetAttribLocation, GLuint, const GLchar *);
 BIND(GLint, glGetUniformLocation, GLuint, const GLchar *);
 BIND(GLvoid, glBindFragDataLocation, GLuint, GLuint, const GLchar *);
+
+BIND(GLvoid, glUniformMatrix4fv, GLint, GLsizei, GLboolean, const GLfloat *);
+BIND(GLvoid, glUniform1f, GLint, GLfloat);
 
 BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, GLvoid *);
 #define GL_TRIANGLES 0x0004
@@ -448,14 +454,56 @@ skip_context:
     cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
     cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
 
+    GLfloat t = (1.0f + sqrtf(5.0f)) / 2.0f;
+
     GLfloat vertices[] = {
-        -0.5f, -0.5f,  0.0f,
-         0.0f,  0.5f,  0.0f,
-         0.5f, -0.5f,  0.0f
+        -1.0f,     t,  0.0f,
+         1.0f,  0.0f,  0.0f,
+         1.0f,     t,  0.0f,
+         0.5f,  0.5f,  0.0f,
+        -1.0f,    -t,  0.0f,
+         0.0f,  1.0f,  0.0f,
+         1.0f,    -t,  0.0f,
+         0.0f,  0.5f,  0.5f,
+         0.0f, -1.0f,     t,
+         0.0f,  0.0f,  1.0f,
+         0.0f,  1.0f,     t,
+         0.5f,  0.0f,  0.5f,
+         0.0f, -1.0f,    -t,
+         1.0f,  0.0f,  1.0f,
+         0.0f,  1.0f,    -t,
+         1.0f,  1.0f,  0.0f,
+            t,  0.0f, -1.0f,
+         0.0f,  1.0f,  1.0f,
+            t,  0.0f,  1.0f,
+         0.0f,  0.0f,  0.0f,
+           -t,  0.0f, -1.0f,
+         0.5f,  0.5f,  0.5f,
+           -t,  0.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
     };
 
     GLuint indices[] = {
-        0, 1, 2
+         0, 11,  5,
+         0,  5,  1,
+         0,  1,  7,
+         0,  7, 10,
+         0, 10, 11,
+         1,  5,  9,
+         5, 11,  4,
+        11, 10,  2,
+        10,  7,  6,
+         7,  1,  8,
+         3,  9,  4,
+         3,  4,  2,
+         3,  2,  6,
+         3,  6,  8,
+         3,  8,  9,
+         4,  9,  5,
+         2,  4, 11,
+         6,  2, 10,
+         8,  6,  7,
+         9,  8,  1,
     };
 
     GLuint buffers[2];
@@ -465,25 +513,39 @@ skip_context:
     glBindVertexArray(array);
     glGenBuffers(2, buffers);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 60 * sizeof(GLuint), indices, GL_STATIC_DRAW);
 
-    const GLchar *vertex_shader_src =
-        "in vec3 att_vertex;\n"
-        "\n"
-        "void main()\n"
-        "{\n"
-        "    gl_Position = vec4(att_vertex, 1.0);\n"
-        "}"
-    ;
+    const GLchar *vertex_shader_src = "\
+        in vec3 att_vertex;\n\
+        in vec3 att_color;\n\
+        \n\
+        out vec3 vf_color;\n\
+        \n\
+        uniform mat4 uni_perspective;\n\
+        uniform mat4 uni_model;\n\
+        uniform float uni_counter;\n\
+        \n\
+        void main()\n\
+        {\n\
+            mat4 rotate = mat4(cos(uni_counter), 0.0, -sin(uni_counter), 0.0,\n\
+                                            0.0, 1.0,               0.0, 0.0,\n\
+                               sin(uni_counter), 0.0,  cos(uni_counter), 0.0,\n\
+                                            0.0, 0.0,               0.0, 1.0);\n\
+            gl_Position = uni_perspective * uni_model * rotate * vec4(att_vertex, 1.0);\n\
+            vf_color = att_color;\n\
+        }\
+    ";
 
     const GLchar *fragment_shader_src =
+        "in vec3 vf_color;\n"
+        "\n"
         "out vec4 fragcolor;\n"
         "\n"
         "void main()\n"
         "{\n"
-        "    fragcolor = vec4(1.0, 1.0, 1.0, 1.0);\n"
+        "    fragcolor = vec4(vf_color, 1.0);\n"
         "}"
     ;
 
@@ -505,11 +567,37 @@ skip_context:
     glUseProgram(program);
 
     GLint att_vertex = glGetAttribLocation(program, "att_vertex");
+    GLint att_color = glGetAttribLocation(program, "att_color");
+    GLint uni_perspective = glGetUniformLocation(program, "uni_perspective");
+    GLint uni_model = glGetUniformLocation(program, "uni_model");
+    GLint uni_counter = glGetUniformLocation(program, "uni_counter");
     
-    glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
     glEnableVertexAttribArray(att_vertex);
+    glEnableVertexAttribArray(att_color);
 
+    GLfloat matrix_perspective[] = {
+        1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
+        0.0f, 1.303225373f, 0.0f, 0.0f,
+        0.0f, 0.0f, -1.00020002f, -1.0f,
+        0.0f, 0.0f, -0.200020002f, 0.0f
+    };
+
+    GLfloat matrix_model[] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, -5.0f, 1.0f
+    };
+
+    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
+    glUniformMatrix4fv(uni_model, 1, GL_FALSE, matrix_model);
     glClearColor(0.33f, 0.33f, 0.33f, 1.0f);
+    glViewport(0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    glEnable(GL_DEPTH_TEST);
+
+    GLfloat counter = 0.0f;
 
     while (alive)
     {
@@ -519,14 +607,19 @@ skip_context:
             DispatchMessage(&msg);
         }
 
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, NULL);
+        counter += 0.00033f;
+
+        glUniform1f(uni_counter, counter);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL);
 
         SwapBuffers(device);
     }
 
     cout << "Shutting down" << endl;
-
+    
+    glDisableVertexAttribArray(att_color);
     glDisableVertexAttribArray(att_vertex);
     glUseProgram(GL_NONE);
     glDetachShader(program, vertex_shader);
