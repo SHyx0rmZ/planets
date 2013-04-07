@@ -138,6 +138,7 @@ BIND(GLvoid, glVertexAttribDivisor, GLuint, GLuint);
 BIND(GLuint, glCreateShader, GLuint);
 #define GL_VERTEX_SHADER   0x8B31
 #define GL_FRAGMENT_SHADER 0x8B30
+#define GL_GEOMETRY_SHADER 0x8DD9
 BIND(GLvoid, glShaderSource, GLuint, GLsizei, const GLchar **, const GLint *);
 BIND(GLvoid, glCompileShader, GLuint);
 BIND(GLvoid, glDeleteShader, GLuint);
@@ -548,8 +549,12 @@ skip_context:
         in vec3 att_vertex;\n\
         in vec3 att_color;\n\
         in mat4 att_matrix;\n\
+        in vec3 att_normal;\n\
         \n\
-        out vec3 vf_color;\n\
+        out vec3 vg_color;\n\
+        out vec3 vg_normal;\n\
+        out vec3 vg_position;\n\
+        out mat4 vg_matrix;\n\
         \n\
         uniform mat4 uni_perspective;\n\
         uniform mat4 uni_model;\n\
@@ -559,41 +564,134 @@ skip_context:
         {\n\
             float spin = uni_counter * (-0.5 + 0.75 * gl_InstanceID);\n\
             mat4 rotate = mat4(cos(spin), 0.0, -sin(spin), 0.0,\n\
-                                            0.0, 1.0,               0.0, 0.0,\n\
+                                     0.0, 1.0,        0.0, 0.0,\n\
                                sin(spin), 0.0,  cos(spin), 0.0,\n\
-                                            0.0, 0.0,               0.0, 1.0);\n\
-            gl_Position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
-            vf_color = att_color;\n\
+                                     0.0, 0.0,        0.0, 1.0);\n\
+            vec4 position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
+            gl_Position = position;\n\
+            vg_color = att_color;\n\
+            vg_normal = normalize(att_normal);\n\
+            vg_position = att_vertex;\n\
+            vg_matrix = uni_perspective * att_matrix * rotate;\n\
         }\
     ";
 
     const GLchar *fragment_shader_src = "\
         #version 330 core\n\
         \n\
-        in vec3 vf_color;\n\
+        in vec3 gf_color;\n\
+        in vec3 gf_normal;\n\
+        in vec3 gf_position;\n\
         \n\
-        out vec4 fragcolor;\n\
+        out vec4 r_color;\n\
+        out vec4 r_normal;\n\
+        out vec4 r_position;\n\
         \n\
         void main()\n\
         {\n\
-            fragcolor = vec4(vf_color, 1.0);\n\
+            r_color = vec4(gf_color, 1.0);\n\
+            r_normal = vec4(gf_normal, 0.0);\n\
+            r_position = vec4(gf_position, 1.0);\n\
         }\
+    ";
+
+    const GLchar *geometry_shader_src = "\
+        #version 330 core\n\
+        \n\
+        layout(triangles) in;\n\
+        layout(triangle_strip, max_vertices = 8) out;\n\
+        \n\
+        in vec3 vg_normal[];\n\
+        in vec3 vg_position[];\n\
+        in vec3 vg_color[];\n\
+        in mat4 vg_matrix[];\n\
+        \n\
+        out vec3 gf_normal;\n\
+        out vec3 gf_position;\n\
+        out vec3 gf_color;\n\
+        \n\
+        void main()\n\
+        {\n\
+            vec3 position[3];\n\
+            vec3 normal[3];\n\
+            \n\
+            for (int i = 0; i < 3; i++)\n\
+            {\n\
+                position[i] = vec3((vg_position[i].x + vg_position[(i + 1) % 3].x) / 2.0,\n\
+                                   (vg_position[i].y + vg_position[(i + 1) % 3].y) / 2.0,\n\
+                                   (vg_position[i].z + vg_position[(i + 1) % 3].z) / 2.0);\n\
+                position[i] = normalize(position[i]) * (sqrt(10.0) + 2 * sqrt(5.0)) / 4.0;\n\
+                normal[i] = vec3((vg_normal[i].x + vg_normal[(i + 1) % 3].x) / 2.0,\n\
+                                 (vg_normal[i].y + vg_normal[(i + 1) % 3].y) / 2.0,\n\
+                                 (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
+            }\n\
+            \n\
+            gl_Position = vg_matrix[0] * vec4(vg_position[0], 1.0);\n\
+            gf_normal = vg_normal[0];\n\
+            gf_position = vg_position[0];\n\
+            gf_color = vec3(1.0, 0.0, 0.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(position[0], 1.0);\n\
+            gf_normal = normal[0];\n\
+            gf_position = position[0];\n\
+            gf_color = vec3(1.0, 1.0, 0.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(position[2], 1.0);\n\
+            gf_normal = normal[2];\n\
+            gf_position = position[2];\n\
+            gf_color = vec3(1.0, 0.0, 1.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(position[1], 1.0);\n\
+            gf_normal = normal[1];\n\
+            gf_position = position[1];\n\
+            gf_color = vec3(0.0, 1.0, 1.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
+            gf_normal = vg_normal[2];\n\
+            gf_position = vg_position[2];\n\
+            gf_color = vec3(0.0, 0.0, 1.0);\n\
+            EmitVertex();\n\
+            EndPrimitive();\n\
+            gl_Position = vg_matrix[0] * vec4(position[1], 1.0);\n\
+            gf_normal = normal[1];\n\
+            gf_position = position[1];\n\
+            gf_color = vec3(0.0, 1.0, 1.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(position[0], 1.0);\n\
+            gf_normal = normal[0];\n\
+            gf_position = position[0];\n\
+            gf_color = vec3(1.0, 1.0, 0.0);\n\
+            EmitVertex();\n\
+            gl_Position = vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
+            gf_normal = vg_normal[1];\n\
+            gf_position = vg_position[1];\n\
+            gf_color = vec3(0.0, 1.0, 0.0);\n\
+            EmitVertex();\n\
+            EndPrimitive();\n\
+        }\n\
     ";
 
     GLint vertex_shader_len = strlen(vertex_shader_src);
     GLint fragment_shader_len = strlen(fragment_shader_src);
+    GLint geometry_shader_len = strlen(geometry_shader_src);
 
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint geometry_shader = glCreateShader(GL_GEOMETRY_SHADER);
     GLuint program = glCreateProgram();
 
     glShaderSource(vertex_shader, 1, &vertex_shader_src, &vertex_shader_len);
     glShaderSource(fragment_shader, 1, &fragment_shader_src, &fragment_shader_len);
+    glShaderSource(geometry_shader, 1, &geometry_shader_src, &geometry_shader_len);
     glCompileShader(vertex_shader);
     glCompileShader(fragment_shader);
+    glCompileShader(geometry_shader);
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
-    glBindFragDataLocation(program, 0, "fragcolor");
+    glAttachShader(program, geometry_shader);
+    glBindFragDataLocation(program, 0, "r_color");
+    glBindFragDataLocation(program, 1, "r_position");
+    glBindFragDataLocation(program, 2, "r_normal");
     glLinkProgram(program);
     glUseProgram(program);
 
@@ -603,6 +701,7 @@ skip_context:
     GLint uni_model = glGetUniformLocation(program, "uni_model");
     GLint uni_counter = glGetUniformLocation(program, "uni_counter");
     GLint att_matrix = glGetAttribLocation(program, "att_matrix");
+    GLint att_normal = glGetAttribLocation(program, "att_normal");
 
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glVertexAttribPointer(att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
@@ -620,8 +719,10 @@ skip_context:
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
     glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
     glVertexAttribPointer(att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
+    glVertexAttribPointer(att_normal, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
     glEnableVertexAttribArray(att_vertex);
     glEnableVertexAttribArray(att_color);
+    glEnableVertexAttribArray(att_normal);
 
     GLfloat matrix_perspective[] = {
         1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
@@ -665,11 +766,17 @@ skip_context:
 
     cout << "Shutting down" << endl;
     
+    glDisableVertexAttribArray(att_normal);
+    glDisableVertexAttribArray(att_matrix);
+    glDisableVertexAttribArray(att_matrix + 1);
+    glDisableVertexAttribArray(att_matrix + 2);
+    glDisableVertexAttribArray(att_matrix + 3);
     glDisableVertexAttribArray(att_color);
     glDisableVertexAttribArray(att_vertex);
     glUseProgram(GL_NONE);
     glDetachShader(program, vertex_shader);
     glDetachShader(program, fragment_shader);
+    glDetachShader(program, geometry_shader);
     glDeleteProgram(program);
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
