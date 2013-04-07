@@ -10,6 +10,10 @@ using namespace std;
 
 bool alive = true;
 
+#define BUFFER_VERTICES 0
+#define BUFFER_INDICES  1
+#define BUFFER_MATRICES 2
+
 namespace gl
 {
     HMODULE opengl = NULL;
@@ -124,9 +128,12 @@ BIND(GLvoid, glDeleteVertexArrays, GLsizei, const GLuint *);
 BIND(GLvoid, glBindVertexArray, GLuint);
 BIND(GLvoid, glEnableVertexAttribArray, GLuint);
 BIND(GLvoid, glDisableVertexAttribArray, GLuint);
+
 BIND(GLvoid, glVertexAttribPointer, GLuint, GLsizei, GLenum, GLboolean, GLsizei, const GLvoid *);
-#define GL_UNSIGNED_INT 0x1405
-#define GL_FLOAT        0x1406
+#define GL_UNSIGNED_BYTE 0x1401
+#define GL_UNSIGNED_INT  0x1405
+#define GL_FLOAT         0x1406
+BIND(GLvoid, glVertexAttribDivisor, GLuint, GLuint);
 
 BIND(GLuint, glCreateShader, GLuint);
 #define GL_VERTEX_SHADER   0x8B31
@@ -149,8 +156,9 @@ BIND(GLvoid, glBindFragDataLocation, GLuint, GLuint, const GLchar *);
 BIND(GLvoid, glUniformMatrix4fv, GLint, GLsizei, GLboolean, const GLfloat *);
 BIND(GLvoid, glUniform1f, GLint, GLfloat);
 
-BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, GLvoid *);
+BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, const GLvoid *);
 #define GL_TRIANGLES 0x0004
+BIND(GLvoid, glDrawElementsInstanced, GLenum, GLsizei, GLenum, const GLvoid *, GLsizei);
 
     bool init()
     {
@@ -413,8 +421,8 @@ int main(int argc, char *argv[])
     }
 
     const int attributes[] = {
-        WGL_CONTEXT_MAJOR_VERSION, 2,
-        WGL_CONTEXT_MINOR_VERSION, 1,
+        WGL_CONTEXT_MAJOR_VERSION, 3,
+        WGL_CONTEXT_MINOR_VERSION, 3,
         0
     };
 
@@ -506,20 +514,40 @@ skip_context:
          9,  8,  1,
     };
 
-    GLuint buffers[2];
+    GLfloat matrices[] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+       -7.5f, 2.5f, -15.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, -5.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        2.5f, 5.0f, -10.0f, 1.0f,
+    };
+
+    GLuint buffers[3];
     GLuint array;
 
     glGenVertexArrays(1, &array);
     glBindVertexArray(array);
-    glGenBuffers(2, buffers);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
+    glGenBuffers(3, buffers);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
     glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[1]);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 60 * sizeof(GLuint), indices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
+    glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), matrices, GL_STATIC_DRAW);
 
     const GLchar *vertex_shader_src = "\
+        #version 330 core\n\
+        \n\
         in vec3 att_vertex;\n\
         in vec3 att_color;\n\
+        in mat4 att_matrix;\n\
         \n\
         out vec3 vf_color;\n\
         \n\
@@ -529,25 +557,28 @@ skip_context:
         \n\
         void main()\n\
         {\n\
-            mat4 rotate = mat4(cos(uni_counter), 0.0, -sin(uni_counter), 0.0,\n\
+            float spin = uni_counter * (-0.5 + 0.75 * gl_InstanceID);\n\
+            mat4 rotate = mat4(cos(spin), 0.0, -sin(spin), 0.0,\n\
                                             0.0, 1.0,               0.0, 0.0,\n\
-                               sin(uni_counter), 0.0,  cos(uni_counter), 0.0,\n\
+                               sin(spin), 0.0,  cos(spin), 0.0,\n\
                                             0.0, 0.0,               0.0, 1.0);\n\
-            gl_Position = uni_perspective * uni_model * rotate * vec4(att_vertex, 1.0);\n\
+            gl_Position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
             vf_color = att_color;\n\
         }\
     ";
 
-    const GLchar *fragment_shader_src =
-        "in vec3 vf_color;\n"
-        "\n"
-        "out vec4 fragcolor;\n"
-        "\n"
-        "void main()\n"
-        "{\n"
-        "    fragcolor = vec4(vf_color, 1.0);\n"
-        "}"
-    ;
+    const GLchar *fragment_shader_src = "\
+        #version 330 core\n\
+        \n\
+        in vec3 vf_color;\n\
+        \n\
+        out vec4 fragcolor;\n\
+        \n\
+        void main()\n\
+        {\n\
+            fragcolor = vec4(vf_color, 1.0);\n\
+        }\
+    ";
 
     GLint vertex_shader_len = strlen(vertex_shader_src);
     GLint fragment_shader_len = strlen(fragment_shader_src);
@@ -571,7 +602,22 @@ skip_context:
     GLint uni_perspective = glGetUniformLocation(program, "uni_perspective");
     GLint uni_model = glGetUniformLocation(program, "uni_model");
     GLint uni_counter = glGetUniformLocation(program, "uni_counter");
-    
+    GLint att_matrix = glGetAttribLocation(program, "att_matrix");
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
+    glVertexAttribPointer(att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
+    glVertexAttribPointer(att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
+    glVertexAttribPointer(att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
+    glVertexAttribDivisor(att_matrix, 1);
+    glVertexAttribDivisor(att_matrix + 1, 1);
+    glVertexAttribDivisor(att_matrix + 2, 1);
+    glVertexAttribDivisor(att_matrix + 3, 1);
+    glEnableVertexAttribArray(att_matrix);
+    glEnableVertexAttribArray(att_matrix + 1);
+    glEnableVertexAttribArray(att_matrix + 2);
+    glEnableVertexAttribArray(att_matrix + 3);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
     glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
     glVertexAttribPointer(att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
     glEnableVertexAttribArray(att_vertex);
@@ -612,7 +658,7 @@ skip_context:
         glUniform1f(uni_counter, counter);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL);
+        glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, 3);
 
         SwapBuffers(device);
     }
@@ -629,7 +675,7 @@ skip_context:
     glDeleteShader(fragment_shader);
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
-    glDeleteBuffers(2, buffers);
+    glDeleteBuffers(3, buffers);
     glBindVertexArray(GL_NONE);
     glDeleteVertexArrays(1, &array);
 
