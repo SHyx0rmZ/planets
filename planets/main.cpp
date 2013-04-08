@@ -643,6 +643,7 @@ skip_context:
         out vec3 vg_normal;\n\
         out vec3 vg_position;\n\
         out mat4 vg_matrix;\n\
+        out mat4 vg_perspective;\n\
         \n\
         uniform mat4 uni_perspective;\n\
         uniform float uni_counter;\n\
@@ -659,7 +660,8 @@ skip_context:
             vg_color = att_color;\n\
             vg_normal = normalize(att_normal);\n\
             vg_position = att_vertex;\n\
-            vg_matrix = uni_perspective * att_matrix * rotate;\n\
+            vg_matrix = att_matrix * rotate;\n\
+            vg_perspective = uni_perspective;\n\
         }\
     ";
 
@@ -692,6 +694,7 @@ skip_context:
         in vec3 vg_position[];\n\
         in vec3 vg_color[];\n\
         in mat4 vg_matrix[];\n\
+        in mat4 vg_perspective[];\n\
         \n\
         out vec3 gf_normal;\n\
         out vec3 gf_position;\n\
@@ -713,45 +716,45 @@ skip_context:
                                  (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
             }\n\
             \n\
-            gl_Position = vg_matrix[0] * vec4(vg_position[0], 1.0);\n\
-            gf_normal = vg_normal[0];\n\
-            gf_position = vg_position[0];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[0], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(vg_normal[0], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(vg_position[0], 1.0)).xyz;\n\
             gf_color = vec3(1.0, 0.0, 0.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(position[0], 1.0);\n\
-            gf_normal = normal[0];\n\
-            gf_position = position[0];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
             gf_color = vec3(1.0, 1.0, 0.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(position[2], 1.0);\n\
-            gf_normal = normal[2];\n\
-            gf_position = position[2];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[2], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(normal[2], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(position[2], 1.0)).xyz;\n\
             gf_color = vec3(1.0, 0.0, 1.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(position[1], 1.0);\n\
-            gf_normal = normal[1];\n\
-            gf_position = position[1];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
             gf_color = vec3(0.0, 1.0, 1.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
-            gf_normal = vg_normal[2];\n\
-            gf_position = vg_position[2];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(vg_normal[2], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(vg_position[2], 1.0)).xyz;\n\
             gf_color = vec3(0.0, 0.0, 1.0);\n\
             EmitVertex();\n\
             EndPrimitive();\n\
-            gl_Position = vg_matrix[0] * vec4(position[1], 1.0);\n\
-            gf_normal = normal[1];\n\
-            gf_position = position[1];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
             gf_color = vec3(0.0, 1.0, 1.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(position[0], 1.0);\n\
-            gf_normal = normal[0];\n\
-            gf_position = position[0];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
             gf_color = vec3(1.0, 1.0, 0.0);\n\
             EmitVertex();\n\
-            gl_Position = vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
-            gf_normal = vg_normal[1];\n\
-            gf_position = vg_position[1];\n\
+            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
+            gf_normal = (vg_matrix[0] * vec4(vg_normal[1], 0.0)).xyz;\n\
+            gf_position = (vg_matrix[0] * vec4(vg_position[1], 1.0)).xyz;\n\
             gf_color = vec3(0.0, 1.0, 0.0);\n\
             EmitVertex();\n\
             EndPrimitive();\n\
@@ -792,15 +795,19 @@ skip_context:
                                          void main()\n\
                                          {\n\
                                              vec2 texcoord = vf_texcoord * 2.0;\n\
+                                             \n\
                                              if (vf_texcoord.s >= 0.5)\n\
-                                             if (vf_texcoord.t >= 0.5)\n\
-                                             r_color = texture(uni_position, texcoord);\n\
-                                             else\n\
-                                             r_color = vec4(0.0, 0.0, 0.0, 0.0);\n\
+                                                 if (vf_texcoord.t >= 0.5)\n\
+                                                     r_color = texture(uni_position, texcoord);\n\
+                                                 else\n\
+                                                 {\n\
+                                                     vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - texture(uni_position, texcoord).xyz);\n\
+                                                     r_color = clamp(max(dot(light, texture(uni_normal, texcoord).xyz), 0.0) * texture(uni_color, texcoord), 0.0, 1.0);\n\
+                                                 }\n\
                                              else if (vf_texcoord.t >= 0.5)\n\
-                                             r_color = texture(uni_color, texcoord);\n\
+                                                 r_color = texture(uni_color, texcoord);\n\
                                              else\n\
-                                             r_color = texture(uni_normal, texcoord);\n\
+                                                 r_color = texture(uni_normal, texcoord);\n\
                                          }\n\
                                          ";
 
@@ -946,7 +953,7 @@ skip_context:
             DispatchMessage(&msg);
         }
 
-        counter += 0.00033f;
+        counter += 0.0033f;
 
         glBindVertexArray(array);
         glUseProgram(program);
