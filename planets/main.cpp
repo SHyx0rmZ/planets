@@ -309,6 +309,51 @@ BIND(GLvoid, glActiveTexture, GLenum);
 
 using namespace gl;
 
+struct shader_stage1
+{
+    static const GLchar *source_vertex;
+    static const GLchar *source_geometry;
+    static const GLchar *source_fragment;
+
+    GLuint shader_vertex;
+    GLuint shader_geometry;
+    GLuint shader_fragment;
+
+    GLuint program;
+
+    GLint att_vertex;
+    GLint att_color;
+    GLint att_normal;
+    GLint att_matrix;
+
+    GLint uni_perspective;
+    GLint uni_counter;
+
+    shader_stage1();
+    ~shader_stage1();
+};
+
+struct shader_stage2
+{
+    static const GLchar *source_vertex;
+    static const GLchar *source_fragment;
+
+    GLuint shader_vertex;
+    GLuint shader_fragment;
+
+    GLuint program;
+
+    GLint att_vertex;
+
+    GLint uni_perspective;
+    GLint uni_color;
+    GLint uni_position;
+    GLint uni_normal;
+
+    shader_stage2();
+    ~shader_stage2();
+};
+
 LRESULT CALLBACK application_loop(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message)
@@ -631,279 +676,33 @@ skip_context:
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES2]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indices2, GL_STATIC_DRAW);
 
-    const GLchar *vertex_shader_src = "\
-        #version 330 core\n\
-        \n\
-        in vec3 att_vertex;\n\
-        in vec3 att_color;\n\
-        in mat4 att_matrix;\n\
-        in vec3 att_normal;\n\
-        \n\
-        out vec3 vg_color;\n\
-        out vec3 vg_normal;\n\
-        out vec3 vg_position;\n\
-        out mat4 vg_matrix;\n\
-        out mat4 vg_perspective;\n\
-        \n\
-        uniform mat4 uni_perspective;\n\
-        uniform float uni_counter;\n\
-        \n\
-        void main()\n\
-        {\n\
-            float spin = uni_counter * (-0.5 + 0.75 * gl_InstanceID);\n\
-            mat4 rotate = mat4(cos(spin), 0.0, -sin(spin), 0.0,\n\
-                                     0.0, 1.0,        0.0, 0.0,\n\
-                               sin(spin), 0.0,  cos(spin), 0.0,\n\
-                                     0.0, 0.0,        0.0, 1.0);\n\
-            vec4 position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
-            gl_Position = position;\n\
-            vg_color = att_color;\n\
-            vg_normal = normalize(att_normal);\n\
-            vg_position = att_vertex;\n\
-            vg_matrix = att_matrix * rotate;\n\
-            vg_perspective = uni_perspective;\n\
-        }\
-    ";
-
-    const GLchar *fragment_shader_src = "\
-        #version 330 core\n\
-        \n\
-        in vec3 gf_color;\n\
-        in vec3 gf_normal;\n\
-        in vec3 gf_position;\n\
-        \n\
-        out vec4 r_color;\n\
-        out vec4 r_normal;\n\
-        out vec4 r_position;\n\
-        \n\
-        void main()\n\
-        {\n\
-            r_color = vec4(gf_color, 1.0);\n\
-            r_normal = vec4(gf_normal, 0.0);\n\
-            r_position = vec4(gf_position, 1.0);\n\
-        }\
-    ";
-
-    const GLchar *geometry_shader_src = "\
-        #version 330 core\n\
-        \n\
-        layout(triangles) in;\n\
-        layout(triangle_strip, max_vertices = 8) out;\n\
-        \n\
-        in vec3 vg_normal[];\n\
-        in vec3 vg_position[];\n\
-        in vec3 vg_color[];\n\
-        in mat4 vg_matrix[];\n\
-        in mat4 vg_perspective[];\n\
-        \n\
-        out vec3 gf_normal;\n\
-        out vec3 gf_position;\n\
-        out vec3 gf_color;\n\
-        \n\
-        void main()\n\
-        {\n\
-            vec3 position[3];\n\
-            vec3 normal[3];\n\
-            \n\
-            for (int i = 0; i < 3; i++)\n\
-            {\n\
-                position[i] = vec3((vg_position[i].x + vg_position[(i + 1) % 3].x) / 2.0,\n\
-                                   (vg_position[i].y + vg_position[(i + 1) % 3].y) / 2.0,\n\
-                                   (vg_position[i].z + vg_position[(i + 1) % 3].z) / 2.0);\n\
-                position[i] = normalize(position[i]) * (sqrt(10.0) + 2.0 * sqrt(5.0)) / 4.0;\n\
-                normal[i] = vec3((vg_normal[i].x + vg_normal[(i + 1) % 3].x) / 2.0,\n\
-                                 (vg_normal[i].y + vg_normal[(i + 1) % 3].y) / 2.0,\n\
-                                 (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
-            }\n\
-            \n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[0], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(vg_normal[0], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(vg_position[0], 1.0)).xyz;\n\
-            gf_color = vec3(1.0, 0.0, 0.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
-            gf_color = vec3(1.0, 1.0, 0.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[2], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(normal[2], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(position[2], 1.0)).xyz;\n\
-            gf_color = vec3(1.0, 0.0, 1.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
-            gf_color = vec3(0.0, 1.0, 1.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(vg_normal[2], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(vg_position[2], 1.0)).xyz;\n\
-            gf_color = vec3(0.0, 0.0, 1.0);\n\
-            EmitVertex();\n\
-            EndPrimitive();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
-            gf_color = vec3(0.0, 1.0, 1.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
-            gf_color = vec3(1.0, 1.0, 0.0);\n\
-            EmitVertex();\n\
-            gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
-            gf_normal = (vg_matrix[0] * vec4(vg_normal[1], 0.0)).xyz;\n\
-            gf_position = (vg_matrix[0] * vec4(vg_position[1], 1.0)).xyz;\n\
-            gf_color = vec3(0.0, 1.0, 0.0);\n\
-            EmitVertex();\n\
-            EndPrimitive();\n\
-        }\n\
-    ";
-
-    GLint vertex_shader_len = strlen(vertex_shader_src);
-    GLint fragment_shader_len = strlen(fragment_shader_src);
-    GLint geometry_shader_len = strlen(geometry_shader_src);
-
-    const GLchar *vertex_shader2_src = "\
-                                       #version 330 core\n\
-                                       \n\
-                                       in vec3 att_vertex;\n\
-                                       \n\
-                                       out vec2 vf_texcoord;\n\
-                                       \n\
-                                       uniform mat4 uni_perspective;\n\
-                                       \n\
-                                       void main()\n\
-                                       {\n\
-                                           gl_Position = uni_perspective * vec4(att_vertex, 1.0);\n\
-                                           vf_texcoord = att_vertex.xy;\n\
-                                       }\n\
-                                       ";
-
-    const GLchar *fragment_shader2_src = "\
-                                         #version 330 core\n\
-                                         \n\
-                                         in vec2 vf_texcoord;\n\
-                                         \n\
-                                         out vec4 r_color;\n\
-                                         \n\
-                                         uniform sampler2D uni_color;\n\
-                                         uniform sampler2D uni_position;\n\
-                                         uniform sampler2D uni_normal;\n\
-                                         \n\
-                                         void main()\n\
-                                         {\n\
-                                             vec2 texcoord = vf_texcoord * 2.0;\n\
-                                             \n\
-                                             if (vf_texcoord.s >= 0.5)\n\
-                                                 if (vf_texcoord.t >= 0.5)\n\
-                                                     r_color = texture(uni_position, texcoord);\n\
-                                                 else\n\
-                                                 {\n\
-                                                     vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - texture(uni_position, texcoord).xyz);\n\
-                                                     r_color = clamp(max(dot(light, texture(uni_normal, texcoord).xyz), 0.0) * texture(uni_color, texcoord), 0.0, 1.0);\n\
-                                                 }\n\
-                                             else if (vf_texcoord.t >= 0.5)\n\
-                                                 r_color = texture(uni_color, texcoord);\n\
-                                             else\n\
-                                                 r_color = texture(uni_normal, texcoord);\n\
-                                         }\n\
-                                         ";
-
-    GLint vertex_shader2_len = strlen(vertex_shader2_src);
-    GLint fragment_shader2_len = strlen(fragment_shader2_src);
-
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLuint geometry_shader = glCreateShader(GL_GEOMETRY_SHADER);
-    GLuint program = glCreateProgram();
-    GLuint vertex_shader2 = glCreateShader(GL_VERTEX_SHADER);
-    GLuint fragment_shader2 = glCreateShader(GL_FRAGMENT_SHADER);
-    GLuint program2 = glCreateProgram();
-
-    glShaderSource(vertex_shader, 1, &vertex_shader_src, &vertex_shader_len);
-    glShaderSource(fragment_shader, 1, &fragment_shader_src, &fragment_shader_len);
-    glShaderSource(geometry_shader, 1, &geometry_shader_src, &geometry_shader_len);
-    glShaderSource(vertex_shader2, 1, &vertex_shader2_src, &vertex_shader2_len);
-    glShaderSource(fragment_shader2, 1, &fragment_shader2_src, &fragment_shader2_len);
-    glCompileShader(vertex_shader);
-    glCompileShader(fragment_shader);
-    glCompileShader(geometry_shader);
-    glCompileShader(vertex_shader2);
-    glCompileShader(fragment_shader2);
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, fragment_shader);
-    glAttachShader(program, geometry_shader);
-    glAttachShader(program2, vertex_shader2);
-    glAttachShader(program2, fragment_shader2);
-    glBindFragDataLocation(program, 0, "r_color");
-    glBindFragDataLocation(program, 1, "r_position");
-    glBindFragDataLocation(program, 2, "r_normal");
-    glBindFragDataLocation(program2, 0, "r_color");
-    glLinkProgram(program);
-    glLinkProgram(program2);
-
-    GLint att_vertex = glGetAttribLocation(program, "att_vertex");
-    GLint att_color = glGetAttribLocation(program, "att_color");
-    GLint uni_perspective = glGetUniformLocation(program, "uni_perspective");
-    GLint uni_model = glGetUniformLocation(program, "uni_model");
-    GLint uni_counter = glGetUniformLocation(program, "uni_counter");
-    GLint att_matrix = glGetAttribLocation(program, "att_matrix");
-    GLint att_normal = glGetAttribLocation(program, "att_normal");
-    GLint att_vertex2 = glGetAttribLocation(program2, "att_vertex");
-    GLint uni_perspective2 = glGetUniformLocation(program2, "uni_perspective");
-    GLint uni_color = glGetUniformLocation(program2, "uni_color");
-    GLint uni_position = glGetUniformLocation(program2, "uni_position");
-    GLint uni_normal = glGetUniformLocation(program2, "uni_normal");
 
     glBindVertexArray(array);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
-    glVertexAttribPointer(att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
-    glVertexAttribPointer(att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
-    glVertexAttribPointer(att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
-    glVertexAttribPointer(att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
-    glVertexAttribDivisor(att_matrix, 1);
-    glVertexAttribDivisor(att_matrix + 1, 1);
-    glVertexAttribDivisor(att_matrix + 2, 1);
-    glVertexAttribDivisor(att_matrix + 3, 1);
-    glEnableVertexAttribArray(att_matrix);
-    glEnableVertexAttribArray(att_matrix + 1);
-    glEnableVertexAttribArray(att_matrix + 2);
-    glEnableVertexAttribArray(att_matrix + 3);
+    glVertexAttribPointer(stage1->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(stage1->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
+    glVertexAttribPointer(stage1->att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
+    glVertexAttribPointer(stage1->att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
+    glVertexAttribDivisor(stage1->att_matrix, 1);
+    glVertexAttribDivisor(stage1->att_matrix + 1, 1);
+    glVertexAttribDivisor(stage1->att_matrix + 2, 1);
+    glVertexAttribDivisor(stage1->att_matrix + 3, 1);
+    glEnableVertexAttribArray(stage1->att_matrix);
+    glEnableVertexAttribArray(stage1->att_matrix + 1);
+    glEnableVertexAttribArray(stage1->att_matrix + 2);
+    glEnableVertexAttribArray(stage1->att_matrix + 3);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
-    glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
-    glVertexAttribPointer(att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
-    glVertexAttribPointer(att_normal, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
-    glEnableVertexAttribArray(att_vertex);
-    glEnableVertexAttribArray(att_color);
-    glEnableVertexAttribArray(att_normal);
+    glVertexAttribPointer(stage1->att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(stage1->att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
+    glVertexAttribPointer(stage1->att_normal, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
+    glEnableVertexAttribArray(stage1->att_vertex);
+    glEnableVertexAttribArray(stage1->att_color);
+    glEnableVertexAttribArray(stage1->att_normal);
     glBindVertexArray(array2);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES2]);
-    glVertexAttribPointer(att_vertex2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
-    glEnableVertexAttribArray(att_vertex2);
+    glVertexAttribPointer(stage2->att_vertex, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    glEnableVertexAttribArray(stage2->att_vertex);
 
-    GLfloat matrix_perspective[] = {
-        1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
-        0.0f, 1.303225373f, 0.0f, 0.0f,
-        0.0f, 0.0f, -1.00020002f, -1.0f,
-        0.0f, 0.0f, -0.200020002f, 0.0f
-    };
-
-    GLfloat matrix_orthogonal[] = {
-        2.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 2.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, -0.0020002f, 0.0f,
-        -1.0f, -1.0f, -1.00020002f, 1.0f
-    };
-
-    glUseProgram(program);
-    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
-    glUseProgram(program2);
-    glUniformMatrix4fv(uni_perspective2, 1, GL_FALSE, matrix_orthogonal);
-    glUniform1i(uni_color, 0);
-    glUniform1i(uni_position, 1);
-    glUniform1i(uni_normal, 2);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     glEnable(GL_DEPTH_TEST);
@@ -956,8 +755,8 @@ skip_context:
         counter += 0.0033f;
 
         glBindVertexArray(array);
-        glUseProgram(program);
-        glUniform1f(uni_counter, counter);
+        glUseProgram(stage1->program);
+        glUniform1f(stage1->uni_counter, counter);
         glBindFramebuffer(GL_FRAMEBUFFER, frame);
         glDrawBuffers(3, deferred_targets);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -966,7 +765,7 @@ skip_context:
         glDrawBuffer(GL_BACK);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBindVertexArray(array2);
-        glUseProgram(program2);
+        glUseProgram(stage2->program);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
         SwapBuffers(device);
@@ -978,31 +777,23 @@ skip_context:
     glDeleteFramebuffers(1, &frame);
     glDeleteRenderbuffers(1, &render);
     glDeleteTextures(3, textures);
-    glDisableVertexAttribArray(att_normal);
-    glDisableVertexAttribArray(att_matrix);
-    glDisableVertexAttribArray(att_matrix + 1);
-    glDisableVertexAttribArray(att_matrix + 2);
-    glDisableVertexAttribArray(att_matrix + 3);
-    glDisableVertexAttribArray(att_color);
-    glDisableVertexAttribArray(att_vertex);
+    glDisableVertexAttribArray(stage1->att_normal);
+    glDisableVertexAttribArray(stage1->att_matrix);
+    glDisableVertexAttribArray(stage1->att_matrix + 1);
+    glDisableVertexAttribArray(stage1->att_matrix + 2);
+    glDisableVertexAttribArray(stage1->att_matrix + 3);
+    glDisableVertexAttribArray(stage1->att_color);
+    glDisableVertexAttribArray(stage1->att_vertex);
+    glDisableVertexAttribArray(stage2->att_vertex);
     glUseProgram(GL_NONE);
-    glDetachShader(program, vertex_shader);
-    glDetachShader(program, fragment_shader);
-    glDetachShader(program, geometry_shader);
-    glDetachShader(program2, vertex_shader2);
-    glDetachShader(program2, fragment_shader2);
-    glDeleteProgram(program);
-    glDeleteProgram(program2);
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-    glDeleteShader(geometry_shader);
-    glDeleteShader(vertex_shader2);
-    glDeleteShader(fragment_shader2);
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
     glDeleteBuffers(3, buffers);
     glBindVertexArray(GL_NONE);
     glDeleteVertexArrays(1, &array);
+
+    delete stage1;
+    delete stage2;
 
 cleanup_context:
     gl::wglMakeCurrent(device, NULL);
@@ -1018,3 +809,303 @@ cleanup_window:
 
     return exit;
 }
+
+/* Shader methods */ /****************************************/
+
+shader_stage1::shader_stage1()
+{
+    shader_vertex = glCreateShader(GL_VERTEX_SHADER);
+    shader_geometry = glCreateShader(GL_GEOMETRY_SHADER);
+    shader_fragment = glCreateShader(GL_FRAGMENT_SHADER);
+    program = glCreateProgram();
+
+    GLint length_vertex = strlen(source_vertex);
+    GLint length_geometry = strlen(source_geometry);
+    GLint length_fragment = strlen(source_fragment);
+
+    glShaderSource(shader_vertex, 1, &source_vertex, &length_vertex);
+    glShaderSource(shader_geometry, 1, &source_geometry, &length_geometry);
+    glShaderSource(shader_fragment, 1, &source_fragment, &length_fragment);
+
+    glCompileShader(shader_vertex);
+    glCompileShader(shader_geometry);
+    glCompileShader(shader_fragment);
+
+    glAttachShader(program, shader_vertex);
+    glAttachShader(program, shader_geometry);
+    glAttachShader(program, shader_fragment);
+
+    glBindFragDataLocation(program, GL_COLOR_ATTACHMENT0 - GL_COLOR_ATTACHMENT0, "r_color");
+    glBindFragDataLocation(program, GL_COLOR_ATTACHMENT1 - GL_COLOR_ATTACHMENT0, "r_position");
+    glBindFragDataLocation(program, GL_COLOR_ATTACHMENT2 - GL_COLOR_ATTACHMENT0, "r_normal");
+
+    glLinkProgram(program);
+
+    att_vertex = glGetAttribLocation(program, "att_vertex");
+    att_color = glGetAttribLocation(program, "att_color");
+    att_normal = glGetAttribLocation(program, "att_normal");
+    att_matrix = glGetAttribLocation(program, "att_matrix");
+
+    uni_perspective = glGetUniformLocation(program, "uni_perspective");
+    uni_counter = glGetUniformLocation(program, "uni_counter");
+
+    GLfloat matrix_perspective[] = {
+        1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
+        0.0f, 1.303225373f, 0.0f, 0.0f,
+        0.0f, 0.0f, -1.00020002f, -1.0f,
+        0.0f, 0.0f, -0.200020002f, 0.0f
+    };
+
+    glUseProgram(program);
+    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
+    glUniform1f(uni_counter, 0.0f);
+}
+
+shader_stage1::~shader_stage1()
+{
+    glUseProgram(GL_NONE);
+
+    glDetachShader(program, shader_vertex);
+    glDetachShader(program, shader_geometry);
+    glDetachShader(program, shader_fragment);
+
+    glDeleteShader(shader_vertex);
+    glDeleteShader(shader_geometry);
+    glDeleteShader(shader_fragment);
+
+    glDeleteProgram(program);
+}
+
+shader_stage2::shader_stage2()
+{
+    shader_vertex = glCreateShader(GL_VERTEX_SHADER);
+    shader_fragment = glCreateShader(GL_FRAGMENT_SHADER);
+    program = glCreateProgram();
+
+    GLint length_vertex = strlen(source_vertex);
+    GLint length_fragment = strlen(source_fragment);
+
+    glShaderSource(shader_vertex, 1, &source_vertex, &length_vertex);
+    glShaderSource(shader_fragment, 1, &source_fragment, &length_fragment);
+
+    glCompileShader(shader_vertex);
+    glCompileShader(shader_fragment);
+
+    glAttachShader(program, shader_vertex);
+    glAttachShader(program, shader_fragment);
+
+    glBindFragDataLocation(program, GL_COLOR_ATTACHMENT0 - GL_COLOR_ATTACHMENT0, "r_color");
+
+    glLinkProgram(program);
+
+    att_vertex = glGetAttribLocation(program, "att_vertex");
+
+    uni_perspective = glGetUniformLocation(program, "uni_perspective");
+    uni_color = glGetUniformLocation(program, "uni_color");
+    uni_position = glGetUniformLocation(program, "uni_position");
+    uni_normal = glGetUniformLocation(program, "uni_normal");
+
+    GLfloat matrix_orthogonal[] = {
+        2.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 2.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, -0.0020002f, 0.0f,
+        -1.0f, -1.0f, -1.00020002f, 1.0f
+    };
+
+    glUseProgram(program);
+    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_orthogonal);
+    glUniform1i(uni_color, GL_TEXTURE0 - GL_TEXTURE0);
+    glUniform1i(uni_position, GL_TEXTURE1 - GL_TEXTURE0);
+    glUniform1i(uni_normal, GL_TEXTURE2 - GL_TEXTURE0);
+}
+
+shader_stage2::~shader_stage2()
+{
+    glUseProgram(GL_NONE);
+
+    glDetachShader(program, shader_vertex);
+    glDetachShader(program, shader_fragment);
+
+    glDeleteShader(shader_vertex);
+    glDeleteShader(shader_fragment);
+
+    glDeleteProgram(program);
+}
+
+/* Shader source codes */ /****************************************/
+
+const GLchar *shader_stage1::source_vertex = "\
+                                             #version 330 core\n\
+                                             \n\
+                                             in vec3 att_vertex;\n\
+                                             in vec3 att_color;\n\
+                                             in mat4 att_matrix;\n\
+                                             in vec3 att_normal;\n\
+                                             \n\
+                                             out vec3 vg_color;\n\
+                                             out vec3 vg_normal;\n\
+                                             out vec3 vg_position;\n\
+                                             out mat4 vg_matrix;\n\
+                                             out mat4 vg_perspective;\n\
+                                             \n\
+                                             uniform mat4 uni_perspective;\n\
+                                             uniform float uni_counter;\n\
+                                             \n\
+                                             void main()\n\
+                                             {\n\
+                                                 float spin = uni_counter * (-0.5 + 0.75 * gl_InstanceID);\n\
+                                                 mat4 rotate = mat4(cos(spin), 0.0, -sin(spin), 0.0,\n\
+                                                                          0.0, 1.0,        0.0, 0.0,\n\
+                                                                    sin(spin), 0.0,  cos(spin), 0.0,\n\
+                                                                          0.0, 0.0,        0.0, 1.0);\n\
+                                                 vec4 position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
+                                                 gl_Position = position;\n\
+                                                 vg_color = att_color;\n\
+                                                 vg_normal = normalize(att_normal);\n\
+                                                 vg_position = att_vertex;\n\
+                                                 vg_matrix = att_matrix * rotate;\n\
+                                                 vg_perspective = uni_perspective;\n\
+                                             }\
+                                             ";
+
+const GLchar *shader_stage1::source_geometry = "\
+                                                #version 330 core\n\
+                                                \n\
+                                                layout(triangles) in;\n\
+                                                layout(triangle_strip, max_vertices = 8) out;\n\
+                                                \n\
+                                                in vec3 vg_normal[];\n\
+                                                in vec3 vg_position[];\n\
+                                                in vec3 vg_color[];\n\
+                                                in mat4 vg_matrix[];\n\
+                                                in mat4 vg_perspective[];\n\
+                                                \n\
+                                                out vec3 gf_normal;\n\
+                                                out vec3 gf_position;\n\
+                                                out vec3 gf_color;\n\
+                                                \n\
+                                                void main()\n\
+                                                {\n\
+                                                    vec3 position[3];\n\
+                                                    vec3 normal[3];\n\
+                                                    \n\
+                                                    for (int i = 0; i < 3; i++)\n\
+                                                    {\n\
+                                                        position[i] = vec3((vg_position[i].x + vg_position[(i + 1) % 3].x) / 2.0,\n\
+                                                                           (vg_position[i].y + vg_position[(i + 1) % 3].y) / 2.0,\n\
+                                                                           (vg_position[i].z + vg_position[(i + 1) % 3].z) / 2.0);\n\
+                                                        position[i] = normalize(position[i]) * (sqrt(10.0) + 2.0 * sqrt(5.0)) / 4.0;\n\
+                                                        normal[i] = vec3((vg_normal[i].x + vg_normal[(i + 1) % 3].x) / 2.0,\n\
+                                                                         (vg_normal[i].y + vg_normal[(i + 1) % 3].y) / 2.0,\n\
+                                                                         (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
+                                                    }\n\
+                                                    \n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[0], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(vg_normal[0], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(vg_position[0], 1.0)).xyz;\n\
+                                                    gf_color = vec3(1.0, 0.0, 0.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
+                                                    gf_color = vec3(1.0, 1.0, 0.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[2], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(normal[2], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(position[2], 1.0)).xyz;\n\
+                                                    gf_color = vec3(1.0, 0.0, 1.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
+                                                    gf_color = vec3(0.0, 1.0, 1.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(vg_normal[2], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(vg_position[2], 1.0)).xyz;\n\
+                                                    gf_color = vec3(0.0, 0.0, 1.0);\n\
+                                                    EmitVertex();\n\
+                                                    EndPrimitive();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
+                                                    gf_color = vec3(0.0, 1.0, 1.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
+                                                    gf_color = vec3(1.0, 1.0, 0.0);\n\
+                                                    EmitVertex();\n\
+                                                    gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
+                                                    gf_normal = (vg_matrix[0] * vec4(vg_normal[1], 0.0)).xyz;\n\
+                                                    gf_position = (vg_matrix[0] * vec4(vg_position[1], 1.0)).xyz;\n\
+                                                    gf_color = vec3(0.0, 1.0, 0.0);\n\
+                                                    EmitVertex();\n\
+                                                    EndPrimitive();\n\
+                                                }\n\
+                                            ";
+
+const GLchar *shader_stage1::source_fragment = "\
+                                               #version 330 core\n\
+                                               \n\
+                                               in vec3 gf_color;\n\
+                                               in vec3 gf_normal;\n\
+                                               in vec3 gf_position;\n\
+                                               \n\
+                                               out vec4 r_color;\n\
+                                               out vec4 r_normal;\n\
+                                               out vec4 r_position;\n\
+                                               \n\
+                                               void main()\n\
+                                               {\n\
+                                                   r_color = vec4(gf_color, 1.0);\n\
+                                                   r_normal = vec4(gf_normal, 0.0);\n\
+                                                   r_position = vec4(gf_position, 1.0);\n\
+                                               }\
+                                               ";
+
+const GLchar *shader_stage2::source_vertex = "\
+                                             #version 330 core\n\
+                                             \n\
+                                             in vec3 att_vertex;\n\
+                                             \n\
+                                             out vec2 vf_texcoord;\n\
+                                             \n\
+                                             uniform mat4 uni_perspective;\n\
+                                             \n\
+                                             void main()\n\
+                                             {\n\
+                                                 gl_Position = uni_perspective * vec4(att_vertex, 1.0);\n\
+                                                 vf_texcoord = att_vertex.xy;\n\
+                                             }\n\
+                                             ";
+
+const GLchar *shader_stage2::source_fragment = "\
+                                               #version 330 core\n\
+                                               \n\
+                                               in vec2 vf_texcoord;\n\
+                                                     \n\
+                                               out vec4 r_color;\n\
+                                               \n\
+                                               uniform sampler2D uni_color;\n\
+                                               uniform sampler2D uni_position;\n\
+                                               uniform sampler2D uni_normal;\n\
+                                               \n\
+                                               void main()\n\
+                                               {\n\
+                                                   vec2 texcoord = vf_texcoord * 2.0;\n\
+                                                   \n\
+                                                   if (vf_texcoord.s >= 0.5)\n\
+                                                       if (vf_texcoord.t >= 0.5)\n\
+                                                           r_color = texture(uni_position, texcoord);\n\
+                                                       else\n\
+                                                       {\n\
+                                                           vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - texture(uni_position, texcoord).xyz);\n\
+                                                           r_color = clamp(max(dot(light, texture(uni_normal, texcoord).xyz), 0.0) * texture(uni_color, texcoord), 0.0, 1.0);\n\
+                                                       }\n\
+                                                   else if (vf_texcoord.t >= 0.5)\n\
+                                                       r_color = texture(uni_color, texcoord);\n\
+                                                   else\n\
+                                                       r_color = texture(uni_normal, texcoord);\n\
+                                               }\n\
+                                               ";
