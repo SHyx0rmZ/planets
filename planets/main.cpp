@@ -215,6 +215,41 @@ BIND(GLvoid, glActiveTexture, GLenum);
 #define GL_TEXTURE1 0x84C1
 #define GL_TEXTURE2 0x84C2
 
+    bool init_context(bool has_context = true)
+    {
+        PROC GetProcAddressW = GetProcAddress(opengl, "wglGetProcAddress");
+        PROC CreateContext = GetProcAddress(opengl, "wglCreateContext");
+        PROC MakeCurrent = GetProcAddress(opengl, "wglMakeCurrent");
+        PROC DeleteContext = GetProcAddress(opengl, "wglDeleteContext");
+
+        if (!GetProcAddressW || !CreateContext || !MakeCurrent || !DeleteContext)
+        {
+            return false;
+        }
+
+        wglGetProcAddress = reinterpret_cast<PROC (_stdcall *)(LPCSTR)>(GetProcAddressW);
+        wglCreateContext = reinterpret_cast<HGLRC (_stdcall *)(HDC)>(CreateContext);
+        wglMakeCurrent = reinterpret_cast<BOOL (_stdcall *)(HDC, HGLRC)>(MakeCurrent);
+        wglDeleteContext = reinterpret_cast<BOOL (_stdcall *)(HGLRC)>(DeleteContext);
+
+        if (!has_context)
+        {
+            return true;
+        }
+
+        wglCreateContextAttribs = reinterpret_cast<HGLRC (_stdcall *)(HDC, HGLRC, const int *)>(wglGetProcAddress("wglCreateContextAttribsARB"));
+        wglChoosePixelFormat = reinterpret_cast<BOOL (_stdcall *)(HDC, const int *, const FLOAT *, UINT, int *, UINT *)>(wglGetProcAddress("wglChoosePixelFormatARB"));
+
+        if (!wglCreateContextAttribs || !wglChoosePixelFormat)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
     bool init()
     {
         if (opengl == NULL)
@@ -227,23 +262,7 @@ BIND(GLvoid, glActiveTexture, GLenum);
             return false;
         }
 
-        if (wglGetProcAddress == NULL)
-        {
-            wglGetProcAddress = reinterpret_cast<PROC (_stdcall *)(LPCSTR)>(GetProcAddress(opengl, "wglGetProcAddress"));
-        }
-
-        if (wglGetProcAddress == NULL)
-        {
-            FreeLibrary(opengl);
-
-            return false;
-        }
-
-        wglCreateContext = reinterpret_cast<HGLRC (_stdcall *)(HDC)>(GetProcAddress(opengl, "wglCreateContext"));
-        wglMakeCurrent = reinterpret_cast<BOOL (_stdcall *)(HDC, HGLRC)>(GetProcAddress(opengl, "wglMakeCurrent"));
-        wglDeleteContext = reinterpret_cast<BOOL (_stdcall *)(HGLRC)>(GetProcAddress(opengl, "wglDeleteContext"));
-
-        if (!wglCreateContext || !wglMakeCurrent || !wglDeleteContext)
+        if(init_context(false) == false)
         {
             FreeLibrary(opengl);
 
@@ -280,21 +299,6 @@ BIND(GLvoid, glActiveTexture, GLenum);
         }
 
         return true;
-    }
-
-    bool init_context()
-    {
-        wglCreateContextAttribs = reinterpret_cast<HGLRC (_stdcall *)(HDC, HGLRC, const int *)>(wglGetProcAddress("wglCreateContextAttribsARB"));
-        wglChoosePixelFormat = reinterpret_cast<BOOL (_stdcall *)(HDC, const int *, const FLOAT *, UINT, int *, UINT *)>(wglGetProcAddress("wglChoosePixelFormatARB"));
-
-        if (!wglCreateContextAttribs || !wglChoosePixelFormat)
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
     }
 
     void cleanup()
@@ -481,8 +485,7 @@ int main(int argc, char *argv[])
         0
     };
 
-    gl::wglMakeCurrent(device, NULL);
-    gl::wglDeleteContext(context);
+    HGLRC backup = context;
 
     context = wglCreateContextAttribs(device, 0, attributes);
 
@@ -495,13 +498,26 @@ int main(int argc, char *argv[])
         goto cleanup_window;
     }
 
-    if (gl::wglMakeCurrent(device, context) == 0)
+    if (gl::wglMakeCurrent(device, context) == 0 || init_context() == false)
     {
-        cerr << "Could not set current rendering context" << endl;
+        if (gl::wglMakeCurrent(device, backup) == 0)
+        {
+            cerr << "Could not set current rendering context" << endl;
 
-        exit = EXIT_FAILURE;
+            exit = EXIT_FAILURE;
 
-        goto cleanup_context;
+            goto cleanup_context;
+        }
+        else
+        {
+            gl::wglDeleteContext(context);
+
+            context = backup;
+        }
+    }
+    else
+    {
+        gl::wglDeleteContext(backup);
     }
 
 skip_context:
