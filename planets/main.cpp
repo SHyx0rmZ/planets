@@ -343,6 +343,11 @@ struct shader_stage2
 
     GLuint program;
 
+    GLuint format;
+
+    GLuint buffer_vertices;
+    GLuint buffer_indices;
+
     GLint att_vertex;
 
     GLint uni_perspective;
@@ -352,6 +357,19 @@ struct shader_stage2
 
     shader_stage2();
     ~shader_stage2();
+};
+
+struct galaxy
+{
+    GLuint format;
+
+    GLuint buffer_vertices;
+    GLuint buffer_indices;
+
+    shader_stage1 *shader;
+
+    galaxy(shader_stage1 *shader);
+    ~galaxy();
 };
 
 LRESULT CALLBACK application_loop(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
@@ -578,58 +596,6 @@ skip_context:
     cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
     cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
 
-    GLfloat t = (1.0f + sqrtf(5.0f)) / 2.0f;
-
-    GLfloat vertices[] = {
-        -1.0f,     t,  0.0f,
-         1.0f,  0.0f,  0.0f,
-         1.0f,     t,  0.0f,
-         0.5f,  0.5f,  0.0f,
-        -1.0f,    -t,  0.0f,
-         0.0f,  1.0f,  0.0f,
-         1.0f,    -t,  0.0f,
-         0.0f,  0.5f,  0.5f,
-         0.0f, -1.0f,     t,
-         0.0f,  0.0f,  1.0f,
-         0.0f,  1.0f,     t,
-         0.5f,  0.0f,  0.5f,
-         0.0f, -1.0f,    -t,
-         1.0f,  0.0f,  1.0f,
-         0.0f,  1.0f,    -t,
-         1.0f,  1.0f,  0.0f,
-            t,  0.0f, -1.0f,
-         0.0f,  1.0f,  1.0f,
-            t,  0.0f,  1.0f,
-         0.0f,  0.0f,  0.0f,
-           -t,  0.0f, -1.0f,
-         0.5f,  0.5f,  0.5f,
-           -t,  0.0f,  1.0f,
-         1.0f,  1.0f,  1.0f,
-    };
-
-    GLuint indices[] = {
-         0, 11,  5,
-         0,  5,  1,
-         0,  1,  7,
-         0,  7, 10,
-         0, 10, 11,
-         1,  5,  9,
-         5, 11,  4,
-        11, 10,  2,
-        10,  7,  6,
-         7,  1,  8,
-         3,  9,  4,
-         3,  4,  2,
-         3,  2,  6,
-         3,  6,  8,
-         3,  8,  9,
-         4,  9,  5,
-         2,  4, 11,
-         6,  2, 10,
-         8,  6,  7,
-         9,  8,  1,
-    };
-
     GLfloat matrices[] = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -645,39 +611,21 @@ skip_context:
         2.5f, 5.0f, -10.0f, 1.0f,
     };
 
-    GLfloat vertices2[] = {
-        0.0f, 0.0f, -1.0f,
-        0.0f, 1.0f, -1.0f,
-        1.0f, 1.0f, -1.0f,
-        1.0f, 0.0f, -1.0f,
-    };
+    shader_stage1 *stage1 = new shader_stage1;
+    shader_stage2 *stage2 = new shader_stage2;
 
-    GLuint indices2[] = {
-        1, 0, 2,
-        3, 2, 0,
-    };
+    galaxy *milky_way = new galaxy(stage1);
 
     GLuint buffers[5];
     GLuint array, array2;
 
     glGenVertexArrays(1, &array);
-    glBindVertexArray(array);
+    glBindVertexArray(milky_way->format);
     glGenBuffers(5, buffers);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
-    glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 60 * sizeof(GLuint), indices, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), matrices, GL_STATIC_DRAW);
-    glGenVertexArrays(1, &array2);
-    glBindVertexArray(array2);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES2]);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), vertices2, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES2]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indices2, GL_STATIC_DRAW);
 
-
-    glBindVertexArray(array);
+    glBindVertexArray(milky_way->format);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glVertexAttribPointer(stage1->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
     glVertexAttribPointer(stage1->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
@@ -691,17 +639,6 @@ skip_context:
     glEnableVertexAttribArray(stage1->att_matrix + 1);
     glEnableVertexAttribArray(stage1->att_matrix + 2);
     glEnableVertexAttribArray(stage1->att_matrix + 3);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
-    glVertexAttribPointer(stage1->att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
-    glVertexAttribPointer(stage1->att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLubyte *>(NULL) + 3 * sizeof(GLfloat));
-    glVertexAttribPointer(stage1->att_normal, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
-    glEnableVertexAttribArray(stage1->att_vertex);
-    glEnableVertexAttribArray(stage1->att_color);
-    glEnableVertexAttribArray(stage1->att_normal);
-    glBindVertexArray(array2);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES2]);
-    glVertexAttribPointer(stage2->att_vertex, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
-    glEnableVertexAttribArray(stage2->att_vertex);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
@@ -754,7 +691,7 @@ skip_context:
 
         counter += 0.0033f;
 
-        glBindVertexArray(array);
+        glBindVertexArray(milky_way->format);
         glUseProgram(stage1->program);
         glUniform1f(stage1->uni_counter, counter);
         glBindFramebuffer(GL_FRAMEBUFFER, frame);
@@ -764,7 +701,7 @@ skip_context:
         glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
         glDrawBuffer(GL_BACK);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glBindVertexArray(array2);
+        glBindVertexArray(stage2->format);
         glUseProgram(stage2->program);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
@@ -777,20 +714,18 @@ skip_context:
     glDeleteFramebuffers(1, &frame);
     glDeleteRenderbuffers(1, &render);
     glDeleteTextures(3, textures);
-    glDisableVertexAttribArray(stage1->att_normal);
     glDisableVertexAttribArray(stage1->att_matrix);
     glDisableVertexAttribArray(stage1->att_matrix + 1);
     glDisableVertexAttribArray(stage1->att_matrix + 2);
     glDisableVertexAttribArray(stage1->att_matrix + 3);
-    glDisableVertexAttribArray(stage1->att_color);
-    glDisableVertexAttribArray(stage1->att_vertex);
-    glDisableVertexAttribArray(stage2->att_vertex);
     glUseProgram(GL_NONE);
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
     glDeleteBuffers(3, buffers);
     glBindVertexArray(GL_NONE);
     glDeleteVertexArrays(1, &array);
+
+    delete milky_way;
 
     delete stage1;
     delete stage2;
@@ -857,8 +792,11 @@ shader_stage1::shader_stage1()
     };
 
     glUseProgram(program);
+
     glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
     glUniform1f(uni_counter, 0.0f);
+
+    glUseProgram(GL_NONE);
 }
 
 shader_stage1::~shader_stage1()
@@ -913,14 +851,62 @@ shader_stage2::shader_stage2()
     };
 
     glUseProgram(program);
+
     glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_orthogonal);
     glUniform1i(uni_color, GL_TEXTURE0 - GL_TEXTURE0);
     glUniform1i(uni_position, GL_TEXTURE1 - GL_TEXTURE0);
     glUniform1i(uni_normal, GL_TEXTURE2 - GL_TEXTURE0);
+
+    glUseProgram(GL_NONE);
+
+    GLfloat vertices[] = {
+        0.0f, 0.0f, -1.0f,
+        0.0f, 1.0f, -1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, 0.0f, -1.0f,
+    };
+
+    GLuint indices[] = {
+        1, 0, 2,
+        3, 2, 0,
+    };
+
+    glGenVertexArrays(1, &format);
+
+    glBindVertexArray(format);
+
+    glGenBuffers(1, &buffer_vertices);
+    glGenBuffers(1, &buffer_indices);
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffer_vertices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer_indices);
+
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(att_vertex, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+
+    glEnableVertexAttribArray(att_vertex);
+
+    glBindVertexArray(GL_NONE);
 }
 
 shader_stage2::~shader_stage2()
 {
+    glBindVertexArray(format);
+
+    glDisableVertexAttribArray(att_vertex);
+
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
+
+    glBindVertexArray(GL_NONE);
+
+    glDeleteBuffers(1, &buffer_vertices);
+    glDeleteBuffers(1, &buffer_indices);
+
+    glDeleteVertexArrays(1, &format);
+
     glUseProgram(GL_NONE);
 
     glDetachShader(program, shader_vertex);
@@ -932,8 +918,110 @@ shader_stage2::~shader_stage2()
     glDeleteProgram(program);
 }
 
+/* Celestial methods */ /****************************************/
+
+galaxy::galaxy(shader_stage1 *shader)
+{
+    this->shader = shader;
+
+    GLfloat radius = (1.0f + sqrtf(5.0f)) / 2.0f;
+
+    GLfloat vertices[] = {
+          -1.0f,  radius,    0.0f,
+           1.0f,    0.0f,    0.0f,
+           1.0f,  radius,    0.0f,
+           0.5f,    0.5f,    0.0f,
+          -1.0f, -radius,    0.0f,
+           0.0f,    1.0f,    0.0f,
+           1.0f, -radius,    0.0f,
+           0.0f,    0.5f,    0.5f,
+           0.0f,   -1.0f,  radius,
+           0.0f,    0.0f,    1.0f,
+           0.0f,    1.0f,  radius,
+           0.5f,    0.0f,    0.5f,
+           0.0f,   -1.0f, -radius,
+           1.0f,    0.0f,    1.0f,
+           0.0f,    1.0f, -radius,
+           1.0f,    1.0f,    0.0f,
+         radius,    0.0f,   -1.0f,
+           0.0f,    1.0f,    1.0f,
+         radius,    0.0f,    1.0f,
+           0.0f,    0.0f,    0.0f,
+        -radius,    0.0f,   -1.0f,
+           0.5f,    0.5f,    0.5f,
+        -radius,    0.0f,    1.0f,
+           1.0f,    1.0f,    1.0f,
+    };
+
+    GLuint indices[] = {
+         0, 11,  5,
+         0,  5,  1,
+         0,  1,  7,
+         0,  7, 10,
+         0, 10, 11,
+         1,  5,  9,
+         5, 11,  4,
+        11, 10,  2,
+        10,  7,  6,
+         7,  1,  8,
+         3,  9,  4,
+         3,  4,  2,
+         3,  2,  6,
+         3,  6,  8,
+         3,  8,  9,
+         4,  9,  5,
+         2,  4, 11,
+         6,  2, 10,
+         8,  6,  7,
+         9,  8,  1,
+    };
+
+    glGenVertexArrays(1, &format);
+
+    glBindVertexArray(format);
+
+    glGenBuffers(1, &buffer_vertices);
+    glGenBuffers(1, &buffer_indices);
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffer_vertices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer_indices);
+
+    glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 60 * sizeof(GLuint), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(shader->att_vertex, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(shader->att_normal, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(shader->att_color, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 3);
+
+    glEnableVertexAttribArray(shader->att_vertex);
+    glEnableVertexAttribArray(shader->att_normal);
+    glEnableVertexAttribArray(shader->att_color);
+
+    glBindVertexArray(GL_NONE);
+}
+
+galaxy::~galaxy()
+{
+    glBindVertexArray(format);
+
+    glDisableVertexAttribArray(shader->att_vertex);
+    glDisableVertexAttribArray(shader->att_normal);
+    glDisableVertexAttribArray(shader->att_color);
+
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
+
+    glBindVertexArray(GL_NONE);
+
+    glDeleteBuffers(1, &buffer_vertices);
+    glDeleteBuffers(1, &buffer_indices);
+
+    glDeleteVertexArrays(1, &format);
+}
+
 /* Shader source codes */ /****************************************/
 
+/* Stage 1, vertex shader: Adds rotation */
 const GLchar *shader_stage1::source_vertex = "\
                                              #version 330 core\n\
                                              \n\
@@ -959,6 +1047,7 @@ const GLchar *shader_stage1::source_vertex = "\
                                                                     sin(spin), 0.0,  cos(spin), 0.0,\n\
                                                                           0.0, 0.0,        0.0, 1.0);\n\
                                                  vec4 position = uni_perspective * att_matrix * rotate * vec4(att_vertex, 1.0);\n\
+                                                 \n\
                                                  gl_Position = position;\n\
                                                  vg_color = att_color;\n\
                                                  vg_normal = normalize(att_normal);\n\
@@ -968,6 +1057,7 @@ const GLchar *shader_stage1::source_vertex = "\
                                              }\
                                              ";
 
+/* Stage 1, geometry shader: Subdivides the icosahedron to approximate an icosphere */
 const GLchar *shader_stage1::source_geometry = "\
                                                 #version 330 core\n\
                                                 \n\
@@ -995,6 +1085,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                                            (vg_position[i].y + vg_position[(i + 1) % 3].y) / 2.0,\n\
                                                                            (vg_position[i].z + vg_position[(i + 1) % 3].z) / 2.0);\n\
                                                         position[i] = normalize(position[i]) * (sqrt(10.0) + 2.0 * sqrt(5.0)) / 4.0;\n\
+                                                        \n\
                                                         normal[i] = vec3((vg_normal[i].x + vg_normal[(i + 1) % 3].x) / 2.0,\n\
                                                                          (vg_normal[i].y + vg_normal[(i + 1) % 3].y) / 2.0,\n\
                                                                          (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
@@ -1005,46 +1096,56 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 0.0, 0.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 1.0, 0.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[2], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(normal[2], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(position[2], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 0.0, 1.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 1.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(vg_normal[2], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[2], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 0.0, 1.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     EndPrimitive();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(normal[1], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 1.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(normal[0], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 1.0, 0.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
                                                     gf_normal = (vg_matrix[0] * vec4(vg_normal[1], 0.0)).xyz;\n\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 0.0);\n\
                                                     EmitVertex();\n\
+                                                    \n\
                                                     EndPrimitive();\n\
                                                 }\n\
                                             ";
 
+/* Stage 1, fragment shader: Store results in framebuffers */
 const GLchar *shader_stage1::source_fragment = "\
                                                #version 330 core\n\
                                                \n\
@@ -1052,18 +1153,19 @@ const GLchar *shader_stage1::source_fragment = "\
                                                in vec3 gf_normal;\n\
                                                in vec3 gf_position;\n\
                                                \n\
-                                               out vec4 r_color;\n\
-                                               out vec4 r_normal;\n\
-                                               out vec4 r_position;\n\
+                                               out vec3 r_color;\n\
+                                               out vec3 r_normal;\n\
+                                               out vec3 r_position;\n\
                                                \n\
                                                void main()\n\
                                                {\n\
-                                                   r_color = vec4(gf_color, 1.0);\n\
-                                                   r_normal = vec4(gf_normal, 0.0);\n\
-                                                   r_position = vec4(gf_position, 1.0);\n\
+                                                   r_color = gf_color;\n\
+                                                   r_normal = gf_normal;\n\
+                                                   r_position = gf_position;\n\
                                                }\
                                                ";
 
+/* Stage 2, vertex_shader: Aligns rectangle to screen */
 const GLchar *shader_stage2::source_vertex = "\
                                              #version 330 core\n\
                                              \n\
@@ -1080,6 +1182,7 @@ const GLchar *shader_stage2::source_vertex = "\
                                              }\n\
                                              ";
 
+/* Stage 2, fragment shader: Displays framebuffers and composited result */
 const GLchar *shader_stage2::source_fragment = "\
                                                #version 330 core\n\
                                                \n\
