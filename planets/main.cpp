@@ -10,9 +10,15 @@ using namespace std;
 
 bool alive = true;
 
-#define BUFFER_VERTICES 0
-#define BUFFER_INDICES  1
-#define BUFFER_MATRICES 2
+#define BUFFER_VERTICES  0
+#define BUFFER_INDICES   1
+#define BUFFER_MATRICES  2
+#define BUFFER_VERTICES2 3
+#define BUFFER_INDICES2  4
+
+#define TEXTURE_DIFFUSE  0
+#define TEXTURE_POSITION 1
+#define TEXTURE_NORMAL   2
 
 namespace gl
 {
@@ -156,10 +162,58 @@ BIND(GLvoid, glBindFragDataLocation, GLuint, GLuint, const GLchar *);
 
 BIND(GLvoid, glUniformMatrix4fv, GLint, GLsizei, GLboolean, const GLfloat *);
 BIND(GLvoid, glUniform1f, GLint, GLfloat);
+BIND(GLvoid, glUniform1i, GLint, GLint);
 
 BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, const GLvoid *);
 #define GL_TRIANGLES 0x0004
 BIND(GLvoid, glDrawElementsInstanced, GLenum, GLsizei, GLenum, const GLvoid *, GLsizei);
+
+BIND(GLvoid, glGenFramebuffers, GLsizei, GLuint *);
+BIND(GLvoid, glDeleteFramebuffers, GLsizei, GLuint *);
+BIND(GLvoid, glBindFramebuffer, GLenum, GLuint);
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+#define GL_FRAMEBUFFER      0x8D40
+BIND(GLvoid, glFramebufferRenderbuffer, GLenum, GLenum, GLenum, GLuint);
+#define GL_COLOR_ATTACHMENT0 0x8CE0
+#define GL_COLOR_ATTACHMENT1 0x8CE1
+#define GL_COLOR_ATTACHMENT2 0x8CE2
+#define GL_DEPTH_ATTACHMENT  0x8D00
+BIND(GLvoid, glFramebufferTexture2D, GLenum, GLenum, GLenum, GLuint, GLint);
+BIND(GLvoid, glDrawBuffers, GLsizei, const GLenum *);
+BIND(GLvoid, glDrawBuffer, GLenum);
+#define GL_BACK 0x0405
+
+BIND(GLvoid, glGenRenderbuffers, GLsizei, GLuint *);
+BIND(GLvoid, glDeleteRenderbuffers, GLsizei, GLuint *);
+BIND(GLvoid, glBindRenderbuffer, GLenum, GLuint);
+#define GL_RENDERBUFFER 0x8D41
+BIND(GLvoid, glRenderbufferStorage, GLenum, GLenum, GLsizei, GLsizei);
+#define GL_DEPTH_COMPONENT24 0x81A6
+
+BIND(GLvoid, glGenTextures, GLsizei, GLuint *);
+BIND(GLvoid, glDeleteTextures, GLsizei, GLuint *);
+BIND(GLvoid, glBindTexture, GLenum, GLuint);
+#define GL_TEXTURE_2D 0x0DE1
+BIND(GLvoid, glTexImage2D, GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, GLvoid *data);
+#define GL_RGB     0x1907
+#define GL_RGBA    0x1908
+#define GL_RGBA32F 0x8814
+#define GL_RGBA16F 0x805B
+#define GL_RGB32F  0x8815
+#define GL_RGB16F  0x881B
+BIND(GLvoid, glTexParameteri, GLenum, GLenum, GLint);
+#define GL_TEXTURE_MAG_FILTER 0x2800
+#define GL_TEXTURE_MIN_FILTER 0x2801
+#define GL_TEXTURE_WRAP_S     0x2802
+#define GL_TEXTURE_WRAP_T     0x2803
+#define GL_NEAREST            0x2600
+#define GL_LINEAR             0x2601
+#define GL_REPEAT             0x2901
+#define GL_CLAMP_TO_EDGE      0x812F
+BIND(GLvoid, glActiveTexture, GLenum);
+#define GL_TEXTURE0 0x84C0
+#define GL_TEXTURE1 0x84C1
+#define GL_TEXTURE2 0x84C2
 
     bool init()
     {
@@ -530,18 +584,36 @@ skip_context:
         2.5f, 5.0f, -10.0f, 1.0f,
     };
 
-    GLuint buffers[3];
-    GLuint array;
+    GLfloat vertices2[] = {
+        0.0f, 0.0f, -1.0f,
+        0.0f, 1.0f, -1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, 0.0f, -1.0f,
+    };
+
+    GLuint indices2[] = {
+        1, 0, 2,
+        3, 2, 0,
+    };
+
+    GLuint buffers[5];
+    GLuint array, array2;
 
     glGenVertexArrays(1, &array);
     glBindVertexArray(array);
-    glGenBuffers(3, buffers);
+    glGenBuffers(5, buffers);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES]);
     glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 60 * sizeof(GLuint), indices, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), matrices, GL_STATIC_DRAW);
+    glGenVertexArrays(1, &array2);
+    glBindVertexArray(array2);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES2]);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), vertices2, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[BUFFER_INDICES2]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indices2, GL_STATIC_DRAW);
 
     const GLchar *vertex_shader_src = "\
         #version 330 core\n\
@@ -557,7 +629,6 @@ skip_context:
         out mat4 vg_matrix;\n\
         \n\
         uniform mat4 uni_perspective;\n\
-        uniform mat4 uni_model;\n\
         uniform float uni_counter;\n\
         \n\
         void main()\n\
@@ -620,7 +691,7 @@ skip_context:
                 position[i] = vec3((vg_position[i].x + vg_position[(i + 1) % 3].x) / 2.0,\n\
                                    (vg_position[i].y + vg_position[(i + 1) % 3].y) / 2.0,\n\
                                    (vg_position[i].z + vg_position[(i + 1) % 3].z) / 2.0);\n\
-                position[i] = normalize(position[i]) * (sqrt(10.0) + 2 * sqrt(5.0)) / 4.0;\n\
+                position[i] = normalize(position[i]) * (sqrt(10.0) + 2.0 * sqrt(5.0)) / 4.0;\n\
                 normal[i] = vec3((vg_normal[i].x + vg_normal[(i + 1) % 3].x) / 2.0,\n\
                                  (vg_normal[i].y + vg_normal[(i + 1) % 3].y) / 2.0,\n\
                                  (vg_normal[i].z + vg_normal[(i + 1) % 3].z) / 2.0);\n\
@@ -675,25 +746,80 @@ skip_context:
     GLint fragment_shader_len = strlen(fragment_shader_src);
     GLint geometry_shader_len = strlen(geometry_shader_src);
 
+    const GLchar *vertex_shader2_src = "\
+                                       #version 330 core\n\
+                                       \n\
+                                       in vec3 att_vertex;\n\
+                                       \n\
+                                       out vec2 vf_texcoord;\n\
+                                       \n\
+                                       uniform mat4 uni_perspective;\n\
+                                       \n\
+                                       void main()\n\
+                                       {\n\
+                                           gl_Position = uni_perspective * vec4(att_vertex, 1.0);\n\
+                                           vf_texcoord = att_vertex.xy;\n\
+                                       }\n\
+                                       ";
+
+    const GLchar *fragment_shader2_src = "\
+                                         #version 330 core\n\
+                                         \n\
+                                         in vec2 vf_texcoord;\n\
+                                         \n\
+                                         out vec4 r_color;\n\
+                                         \n\
+                                         uniform sampler2D uni_color;\n\
+                                         uniform sampler2D uni_position;\n\
+                                         uniform sampler2D uni_normal;\n\
+                                         \n\
+                                         void main()\n\
+                                         {\n\
+                                             vec2 texcoord = vf_texcoord * 2.0;\n\
+                                             if (vf_texcoord.s >= 0.5)\n\
+                                             if (vf_texcoord.t >= 0.5)\n\
+                                             r_color = texture(uni_position, texcoord);\n\
+                                             else\n\
+                                             r_color = vec4(0.0, 0.0, 0.0, 0.0);\n\
+                                             else if (vf_texcoord.t >= 0.5)\n\
+                                             r_color = texture(uni_color, texcoord);\n\
+                                             else\n\
+                                             r_color = texture(uni_normal, texcoord);\n\
+                                         }\n\
+                                         ";
+
+    GLint vertex_shader2_len = strlen(vertex_shader2_src);
+    GLint fragment_shader2_len = strlen(fragment_shader2_src);
+
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
     GLuint geometry_shader = glCreateShader(GL_GEOMETRY_SHADER);
     GLuint program = glCreateProgram();
+    GLuint vertex_shader2 = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragment_shader2 = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint program2 = glCreateProgram();
 
     glShaderSource(vertex_shader, 1, &vertex_shader_src, &vertex_shader_len);
     glShaderSource(fragment_shader, 1, &fragment_shader_src, &fragment_shader_len);
     glShaderSource(geometry_shader, 1, &geometry_shader_src, &geometry_shader_len);
+    glShaderSource(vertex_shader2, 1, &vertex_shader2_src, &vertex_shader2_len);
+    glShaderSource(fragment_shader2, 1, &fragment_shader2_src, &fragment_shader2_len);
     glCompileShader(vertex_shader);
     glCompileShader(fragment_shader);
     glCompileShader(geometry_shader);
+    glCompileShader(vertex_shader2);
+    glCompileShader(fragment_shader2);
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
     glAttachShader(program, geometry_shader);
+    glAttachShader(program2, vertex_shader2);
+    glAttachShader(program2, fragment_shader2);
     glBindFragDataLocation(program, 0, "r_color");
     glBindFragDataLocation(program, 1, "r_position");
     glBindFragDataLocation(program, 2, "r_normal");
+    glBindFragDataLocation(program2, 0, "r_color");
     glLinkProgram(program);
-    glUseProgram(program);
+    glLinkProgram(program2);
 
     GLint att_vertex = glGetAttribLocation(program, "att_vertex");
     GLint att_color = glGetAttribLocation(program, "att_color");
@@ -702,7 +828,13 @@ skip_context:
     GLint uni_counter = glGetUniformLocation(program, "uni_counter");
     GLint att_matrix = glGetAttribLocation(program, "att_matrix");
     GLint att_normal = glGetAttribLocation(program, "att_normal");
+    GLint att_vertex2 = glGetAttribLocation(program2, "att_vertex");
+    GLint uni_perspective2 = glGetUniformLocation(program2, "uni_perspective");
+    GLint uni_color = glGetUniformLocation(program2, "uni_color");
+    GLint uni_position = glGetUniformLocation(program2, "uni_position");
+    GLint uni_normal = glGetUniformLocation(program2, "uni_normal");
 
+    glBindVertexArray(array);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glVertexAttribPointer(att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
     glVertexAttribPointer(att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
@@ -723,6 +855,10 @@ skip_context:
     glEnableVertexAttribArray(att_vertex);
     glEnableVertexAttribArray(att_color);
     glEnableVertexAttribArray(att_normal);
+    glBindVertexArray(array2);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_VERTICES2]);
+    glVertexAttribPointer(att_vertex2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    glEnableVertexAttribArray(att_vertex2);
 
     GLfloat matrix_perspective[] = {
         1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
@@ -731,20 +867,60 @@ skip_context:
         0.0f, 0.0f, -0.200020002f, 0.0f
     };
 
-    GLfloat matrix_model[] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, -5.0f, 1.0f
+    GLfloat matrix_orthogonal[] = {
+        2.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 2.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, -0.0020002f, 0.0f,
+        -1.0f, -1.0f, -1.00020002f, 1.0f
     };
 
+    glUseProgram(program);
     glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
-    glUniformMatrix4fv(uni_model, 1, GL_FALSE, matrix_model);
-    glClearColor(0.33f, 0.33f, 0.33f, 1.0f);
+    glUseProgram(program2);
+    glUniformMatrix4fv(uni_perspective2, 1, GL_FALSE, matrix_orthogonal);
+    glUniform1i(uni_color, 0);
+    glUniform1i(uni_position, 1);
+    glUniform1i(uni_normal, 2);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     glEnable(GL_DEPTH_TEST);
 
     GLfloat counter = 0.0f;
+
+    GLuint frame;
+    GLuint render;
+    GLuint textures[3];
+
+    glGenFramebuffers(1, &frame);
+    glGenRenderbuffers(1, &render);
+    glBindRenderbuffer(GL_RENDERBUFFER, render);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(3, textures);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_DIFFUSE]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_POSITION]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_NORMAL]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glBindFramebuffer(GL_FRAMEBUFFER, frame);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, render);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[TEXTURE_DIFFUSE], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, textures[TEXTURE_POSITION], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, textures[TEXTURE_NORMAL], 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_DIFFUSE]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_POSITION]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, textures[TEXTURE_NORMAL]);
+
+    GLenum deferred_targets[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 
     while (alive)
     {
@@ -756,16 +932,29 @@ skip_context:
 
         counter += 0.00033f;
 
+        glBindVertexArray(array);
+        glUseProgram(program);
         glUniform1f(uni_counter, counter);
-
+        glBindFramebuffer(GL_FRAMEBUFFER, frame);
+        glDrawBuffers(3, deferred_targets);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, 3);
+        glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+        glDrawBuffer(GL_BACK);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindVertexArray(array2);
+        glUseProgram(program2);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
         SwapBuffers(device);
     }
 
     cout << "Shutting down" << endl;
-    
+
+    glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+    glDeleteFramebuffers(1, &frame);
+    glDeleteRenderbuffers(1, &render);
+    glDeleteTextures(3, textures);
     glDisableVertexAttribArray(att_normal);
     glDisableVertexAttribArray(att_matrix);
     glDisableVertexAttribArray(att_matrix + 1);
@@ -777,9 +966,15 @@ skip_context:
     glDetachShader(program, vertex_shader);
     glDetachShader(program, fragment_shader);
     glDetachShader(program, geometry_shader);
+    glDetachShader(program2, vertex_shader2);
+    glDetachShader(program2, fragment_shader2);
     glDeleteProgram(program);
+    glDeleteProgram(program2);
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
+    glDeleteShader(geometry_shader);
+    glDeleteShader(vertex_shader2);
+    glDeleteShader(fragment_shader2);
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
     glDeleteBuffers(3, buffers);
