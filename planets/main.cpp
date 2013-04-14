@@ -322,6 +322,8 @@ struct matrix
 matrix translate(GLfloat x, GLfloat y, GLfloat z);
 matrix rotate(GLfloat rx, GLfloat ry, GLfloat rz);
 matrix scale(GLfloat s);
+matrix perspective(GLfloat cnear, GLfloat cfar, GLfloat width, GLfloat height, GLfloat fov);
+matrix orthogonal(GLfloat cnear, GLfloat cfar, GLfloat width, GLfloat height);
 
 struct shader_stage1
 {
@@ -843,6 +845,32 @@ matrix scale(GLfloat s)
     return result;
 }
 
+matrix perspective(GLfloat cnear, GLfloat cfar, GLfloat width, GLfloat height, GLfloat fov)
+{
+    matrix result;
+
+    result.elements[ 0] = (2.0f * cnear / (2.0f * cnear * tanf(fov * M_PI / 360.0f))) / (width / height);
+    result.elements[ 5] = (2.0f * cnear / (2.0f * cnear * tanf(fov * M_PI / 360.0f)));
+    result.elements[10] = -(cfar + cnear) / (cfar - cnear);
+    result.elements[11] = -1.0f;
+    result.elements[14] = -2.0f * (cfar * cnear) / (cfar - cnear);
+    result.elements[15] = 0.0f;
+
+    return result;
+}
+
+matrix orthogonal(GLfloat cnear, GLfloat cfar, GLfloat width, GLfloat height)
+{
+    matrix result;
+
+    result.elements[ 0] = 2.0f / width;
+    result.elements[ 5] = 2.0f / height;
+    result.elements[10] = -2.0f / (cfar - cnear);
+    result.elements[14] = -(cfar + cnear) / (cfar - cnear);
+
+    return result;
+}
+
 /* Shader methods */ /****************************************/
 
 shader_stage1::shader_stage1()
@@ -882,16 +910,11 @@ shader_stage1::shader_stage1()
     uni_perspective = glGetUniformLocation(program, "uni_perspective");
     uni_counter = glGetUniformLocation(program, "uni_counter");
 
-    GLfloat matrix_perspective[] = {
-        1.303225373f / (GetSystemMetrics(SM_CXSCREEN) / static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN))), 0.0f, 0.0f, 0.0f,
-        0.0f, 1.303225373f, 0.0f, 0.0f,
-        0.0f, 0.0f, -1.00020002f, -1.0f,
-        0.0f, 0.0f, -0.200020002f, 0.0f
-    };
+    matrix matrix_perspective = perspective(0.1f, 1000.0f, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 75.0f);
 
     glUseProgram(program);
 
-    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective);
+    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective.elements);
     glUniform1f(uni_counter, 0.0f);
 
     glUseProgram(GL_NONE);
@@ -941,16 +964,11 @@ shader_stage2::shader_stage2()
     uni_position = glGetUniformLocation(program, "uni_position");
     uni_normal = glGetUniformLocation(program, "uni_normal");
 
-    GLfloat matrix_orthogonal[] = {
-        2.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 2.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, -0.0020002f, 0.0f,
-        -1.0f, -1.0f, -1.00020002f, 1.0f
-    };
+    matrix matrix_orthogonal = orthogonal(0.1f, 1000.0f, 1.0f, 1.0f) * translate(-0.5f, -0.5f, 0.0f);
 
     glUseProgram(program);
 
-    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_orthogonal);
+    glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_orthogonal.elements);
     glUniform1i(uni_color, GL_TEXTURE0 - GL_TEXTURE0);
     glUniform1i(uni_position, GL_TEXTURE1 - GL_TEXTURE0);
     glUniform1i(uni_normal, GL_TEXTURE2 - GL_TEXTURE0);
