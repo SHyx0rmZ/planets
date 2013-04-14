@@ -128,6 +128,7 @@ BIND(GLvoid, glBindBuffer, GLenum, GLuint);
 #define GL_ELEMENT_ARRAY_BUFFER 0x8893
 BIND(GLvoid, glBufferData, GLenum, GLsizeiptr, const GLvoid *, GLenum);
 #define GL_STATIC_DRAW 0x88E4
+BIND(GLvoid, glBufferSubData, GLenum, GLintptr, GLsizeiptr, const GLvoid *);
 
 BIND(GLvoid, glGenVertexArrays, GLsizei, GLuint *);
 BIND(GLvoid, glDeleteVertexArrays, GLsizei, const GLuint *);
@@ -308,6 +309,19 @@ BIND(GLvoid, glActiveTexture, GLenum);
 }
 
 using namespace gl;
+
+struct matrix
+{
+    GLfloat elements[16];
+
+    matrix();
+
+    matrix operator*(const matrix &other);
+};
+
+matrix translate(GLfloat x, GLfloat y, GLfloat z);
+matrix rotate(GLfloat rx, GLfloat ry, GLfloat rz);
+matrix scale(GLfloat s);
 
 struct shader_stage1
 {
@@ -625,6 +639,14 @@ skip_context:
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), matrices, GL_STATIC_DRAW);
 
+    matrix m1 = translate(-7.5f, 2.5f, -15.0f);
+    matrix m2 = translate(0.0f, 0.0f, -5.0f);
+    matrix m3 = translate(2.5f, 5.0f, -10.0f);
+
+    glBufferSubData(GL_ARRAY_BUFFER, 0 * sizeof(GLfloat), 16 * sizeof(GLfloat), m1.elements);
+    glBufferSubData(GL_ARRAY_BUFFER, 16 * sizeof(GLfloat), 16 * sizeof(GLfloat), m2.elements);
+    glBufferSubData(GL_ARRAY_BUFFER, 32 * sizeof(GLfloat), 16 * sizeof(GLfloat), m3.elements);
+
     glBindVertexArray(milky_way->format);
     glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
     glVertexAttribPointer(stage1->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
@@ -748,6 +770,77 @@ cleanup_window:
     gl::cleanup();
 
     return exit;
+}
+
+matrix::matrix()
+{
+    for (int x = 0; x < 4; ++x)
+        for (int y = 0; y < 4; ++y)
+            elements[x + y * 4] = (x == y) ? 1.0f : 0.0f;
+}
+
+matrix matrix::operator*(const matrix &other)
+{
+    matrix result;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            result.elements[i + j * 4] = 0.0f;
+
+            for (int k = 0; k < 4; ++k)
+            {
+                result.elements[i + j * 4] += elements[i + k * 4] * other.elements[k + j * 4];
+            }
+        }
+    }
+
+    return result;
+}
+
+matrix translate(GLfloat x, GLfloat y, GLfloat z)
+{
+    matrix result;
+
+    result.elements[12] = x;
+    result.elements[13] = y;
+    result.elements[14] = z;
+
+    return result;
+}
+
+matrix rotate(GLfloat rx, GLfloat ry, GLfloat rz)
+{
+    matrix rox, roy, roz;
+
+    rox.elements[ 5] =  cos(rx);
+    rox.elements[ 6] = -sin(rx);
+    rox.elements[ 9] =  sin(rx);
+    rox.elements[10] =  cos(rx);
+
+    roy.elements[ 0] =  cos(ry);
+    roy.elements[ 2] =  sin(ry);
+    roy.elements[ 8] = -sin(ry);
+    roy.elements[10] =  cos(ry);
+
+    roz.elements[ 0] =  cos(rz);
+    roz.elements[ 1] = -sin(rz);
+    roz.elements[ 4] =  sin(rz);
+    roz.elements[ 5] =  cos(rz);
+
+    return rox * roy * roz;
+}
+
+matrix scale(GLfloat s)
+{
+    matrix result;
+
+    result.elements[ 0] = s;
+    result.elements[ 5] = s;
+    result.elements[10] = s;
+
+    return result;
 }
 
 /* Shader methods */ /****************************************/
