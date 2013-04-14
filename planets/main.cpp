@@ -127,6 +127,7 @@ BIND(GLvoid, glBindBuffer, GLenum, GLuint);
 #define GL_ARRAY_BUFFER         0x8892
 #define GL_ELEMENT_ARRAY_BUFFER 0x8893
 BIND(GLvoid, glBufferData, GLenum, GLsizeiptr, const GLvoid *, GLenum);
+#define GL_STREAM_DRAW 0x88E0
 #define GL_STATIC_DRAW 0x88E4
 BIND(GLvoid, glBufferSubData, GLenum, GLintptr, GLsizeiptr, const GLvoid *);
 
@@ -381,6 +382,7 @@ struct galaxy
 
     GLuint buffer_vertices;
     GLuint buffer_indices;
+    GLuint buffer_matrices;
 
     shader_stage1 *shader;
 
@@ -632,14 +634,7 @@ skip_context:
 
     galaxy *milky_way = new galaxy(stage1);
 
-    GLuint buffers[5];
-    GLuint array, array2;
-
-    glGenVertexArrays(1, &array);
     glBindVertexArray(milky_way->format);
-    glGenBuffers(5, buffers);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
-    glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), matrices, GL_STATIC_DRAW);
 
     matrix m1 = translate(-7.5f, 2.5f, -15.0f);
     matrix m2 = translate(0.0f, 0.0f, -5.0f);
@@ -648,21 +643,6 @@ skip_context:
     glBufferSubData(GL_ARRAY_BUFFER, 0 * sizeof(GLfloat), 16 * sizeof(GLfloat), m1.elements);
     glBufferSubData(GL_ARRAY_BUFFER, 16 * sizeof(GLfloat), 16 * sizeof(GLfloat), m2.elements);
     glBufferSubData(GL_ARRAY_BUFFER, 32 * sizeof(GLfloat), 16 * sizeof(GLfloat), m3.elements);
-
-    glBindVertexArray(milky_way->format);
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[BUFFER_MATRICES]);
-    glVertexAttribPointer(stage1->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
-    glVertexAttribPointer(stage1->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
-    glVertexAttribPointer(stage1->att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
-    glVertexAttribPointer(stage1->att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
-    glVertexAttribDivisor(stage1->att_matrix, 1);
-    glVertexAttribDivisor(stage1->att_matrix + 1, 1);
-    glVertexAttribDivisor(stage1->att_matrix + 2, 1);
-    glVertexAttribDivisor(stage1->att_matrix + 3, 1);
-    glEnableVertexAttribArray(stage1->att_matrix);
-    glEnableVertexAttribArray(stage1->att_matrix + 1);
-    glEnableVertexAttribArray(stage1->att_matrix + 2);
-    glEnableVertexAttribArray(stage1->att_matrix + 3);
 
     GLuint frame;
     GLuint render;
@@ -743,16 +723,8 @@ skip_context:
     glDeleteFramebuffers(1, &frame);
     glDeleteRenderbuffers(1, &render);
     glDeleteTextures(3, textures);
-    glDisableVertexAttribArray(stage1->att_matrix);
-    glDisableVertexAttribArray(stage1->att_matrix + 1);
-    glDisableVertexAttribArray(stage1->att_matrix + 2);
-    glDisableVertexAttribArray(stage1->att_matrix + 3);
     glUseProgram(GL_NONE);
-    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
-    glDeleteBuffers(3, buffers);
     glBindVertexArray(GL_NONE);
-    glDeleteVertexArrays(1, &array);
 
     delete milky_way;
 
@@ -773,6 +745,8 @@ cleanup_window:
 
     return exit;
 }
+
+/* Matrix methods */ /****************************************/
 
 matrix::matrix()
 {
@@ -1098,6 +1072,7 @@ galaxy::galaxy(shader_stage1 *shader)
 
     glGenBuffers(1, &buffer_vertices);
     glGenBuffers(1, &buffer_indices);
+    glGenBuffers(1, &buffer_matrices);
 
     glBindBuffer(GL_ARRAY_BUFFER, buffer_vertices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer_indices);
@@ -1113,12 +1088,36 @@ galaxy::galaxy(shader_stage1 *shader)
     glEnableVertexAttribArray(shader->att_normal);
     glEnableVertexAttribArray(shader->att_color);
 
+    glBindBuffer(GL_ARRAY_BUFFER, buffer_matrices);
+
+    glBufferData(GL_ARRAY_BUFFER, 3 * 16 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+
+    glVertexAttribPointer(shader->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
+    glVertexAttribPointer(shader->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
+    glVertexAttribPointer(shader->att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
+    glVertexAttribPointer(shader->att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
+
+    glVertexAttribDivisor(shader->att_matrix, 1);
+    glVertexAttribDivisor(shader->att_matrix + 1, 1);
+    glVertexAttribDivisor(shader->att_matrix + 2, 1);
+    glVertexAttribDivisor(shader->att_matrix + 3, 1);
+
+    glEnableVertexAttribArray(shader->att_matrix);
+    glEnableVertexAttribArray(shader->att_matrix + 1);
+    glEnableVertexAttribArray(shader->att_matrix + 2);
+    glEnableVertexAttribArray(shader->att_matrix + 3);
+
     glBindVertexArray(GL_NONE);
 }
 
 galaxy::~galaxy()
 {
     glBindVertexArray(format);
+
+    glDisableVertexAttribArray(shader->att_matrix);
+    glDisableVertexAttribArray(shader->att_matrix + 1);
+    glDisableVertexAttribArray(shader->att_matrix + 2);
+    glDisableVertexAttribArray(shader->att_matrix + 3);
 
     glDisableVertexAttribArray(shader->att_vertex);
     glDisableVertexAttribArray(shader->att_normal);
