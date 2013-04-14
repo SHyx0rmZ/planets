@@ -8,13 +8,9 @@
 
 using namespace std;
 
-bool alive = true;
+/* Forward declarations */ /****************************************/
 
-#define BUFFER_VERTICES  0
-#define BUFFER_INDICES   1
-#define BUFFER_MATRICES  2
-#define BUFFER_VERTICES2 3
-#define BUFFER_INDICES2  4
+bool alive = true;
 
 #define TEXTURE_DIFFUSE  0
 #define TEXTURE_POSITION 1
@@ -613,21 +609,6 @@ skip_context:
 
     cout << "Rendering using " << glGetString(GL_RENDERER) << " by " << glGetString(GL_VENDOR) << endl;
     cout << "OpenGL version is " << glGetString(GL_VERSION) << ", GLSL version is " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
-
-    GLfloat matrices[] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-       -7.5f, 2.5f, -15.0f, 1.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, -5.0f, 1.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        2.5f, 5.0f, -10.0f, 1.0f,
-    };
 
     shader_stage1 *stage1 = new shader_stage1;
     shader_stage2 *stage2 = new shader_stage2;
