@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include <map>
 #include <cmath>
+#include <vector>
 
 using namespace std;
 
@@ -372,6 +373,53 @@ struct shader_stage2
     ~shader_stage2();
 };
 
+struct galaxy;
+struct sun;
+struct planet;
+
+struct celestial
+{
+    matrix transform;
+    galaxy *g;
+
+    celestial(galaxy *g);
+
+    virtual void update(GLfloat time) = 0;
+};
+
+struct moon : celestial
+{
+    GLfloat rx, ry, rz, d, s;
+
+    planet *p;
+
+    moon(galaxy *g, planet *p);
+
+    virtual void update(GLfloat time);
+};
+
+struct planet : celestial
+{
+    GLfloat rx, ry, rz, d, s;
+
+    sun *p;
+
+    planet(galaxy *g, sun *p);
+
+    moon *add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s);
+    virtual void update(GLfloat time);
+};
+
+struct sun : celestial
+{
+    GLfloat tx, ty, tz, s;
+
+    sun(galaxy *g);
+
+    planet *add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s);
+    virtual void update(GLfloat time);
+};
+
 struct galaxy
 {
     GLuint format;
@@ -382,8 +430,13 @@ struct galaxy
 
     shader_stage1 *shader;
 
+    vector<celestial *> objects;
+
     galaxy(shader_stage1 *shader);
     ~galaxy();
+
+    sun *add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s);
+    void render(GLfloat time);
 };
 
 LRESULT CALLBACK application_loop(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
@@ -615,6 +668,10 @@ skip_context:
 
     galaxy *milky_way = new galaxy(stage1);
 
+    sun *sol = milky_way->add_sun(0.0f, 0.0f, -5.0f, 1.0f);
+    planet *terra = sol->add_planet(0.0f, 1.0f, 0.0f, 4.0f, 0.2f);
+    moon *luna = terra->add_moon(0.2f, 0.0f, 0.0f, 5.0f, 0.3f);
+
     glBindVertexArray(milky_way->format);
 
     matrix m1 = translate(-7.5f, 2.5f, -15.0f);
@@ -681,13 +738,11 @@ skip_context:
 
         counter += 0.0033f;
 
-        glBindVertexArray(milky_way->format);
-        glUseProgram(stage1->program);
-        glUniform1f(stage1->uni_counter, counter);
         glBindFramebuffer(GL_FRAMEBUFFER, frame);
         glDrawBuffers(3, deferred_targets);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, 3);
+
+        milky_way->render(counter);
+
         glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
         glDrawBuffer(GL_BACK);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -991,6 +1046,74 @@ shader_stage2::~shader_stage2()
 
 /* Celestial methods */ /****************************************/
 
+celestial::celestial(galaxy *g)
+{
+    this->g = g;
+
+    g->objects.push_back(this);
+
+    glBindVertexArray(g->format);
+
+    glBufferData(GL_ARRAY_BUFFER, g->objects.size() * 16 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+
+    glBindVertexArray(GL_NONE);
+}
+
+moon::moon(galaxy *g, planet *p) : celestial(g)
+{
+    this->p = p;
+}
+
+void moon::update(GLfloat time)
+{
+    transform = p->transform * rotate(time * rx, time * ry, time * rz) * translate(0.0f, 0.0f, d) * scale(s);
+}
+
+planet::planet(galaxy *g, sun *p) : celestial(g)
+{
+    this->p = p;
+}
+
+void planet::update(GLfloat time)
+{
+    transform = p->transform * rotate(time * rx, time * ry, time * rz) * translate(0.0f, 0.0f, d) * scale(s);
+}
+
+moon *planet::add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
+{
+    moon *object = new moon(g, this);
+
+    object->rx = rx;
+    object->ry = ry;
+    object->rz = rz;
+    object->d = d;
+    object->s = s;
+
+    return object;
+}
+
+sun::sun(galaxy *g) : celestial(g)
+{
+}
+
+void sun::update(GLfloat time)
+{
+    transform = translate(tx, ty, tz) * scale(s);
+}
+
+planet *sun::add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
+{
+    planet *object = new planet(g, this);
+
+    object->rx = rx;
+    object->ry = ry;
+    object->rz = rz;
+    object->d = d;
+    object->s = s;
+
+    return object;
+}
+
 galaxy::galaxy(shader_stage1 *shader)
 {
     this->shader = shader;
@@ -1071,7 +1194,7 @@ galaxy::galaxy(shader_stage1 *shader)
 
     glBindBuffer(GL_ARRAY_BUFFER, buffer_matrices);
 
-    glBufferData(GL_ARRAY_BUFFER, 3 * 16 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
 
     glVertexAttribPointer(shader->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
     glVertexAttribPointer(shader->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
@@ -1113,6 +1236,43 @@ galaxy::~galaxy()
     glDeleteBuffers(1, &buffer_indices);
 
     glDeleteVertexArrays(1, &format);
+
+    for (int i = 0; i < objects.size(); ++i)
+    {
+        delete objects[i];
+    }
+}
+
+sun *galaxy::add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s)
+{
+    sun *object = new sun(this);
+
+    object->tx = tx;
+    object->ty = ty;
+    object->tz = tz;
+    object->s = s;
+
+    return object;
+}
+
+void galaxy::render(GLfloat time)
+{
+    glBindVertexArray(format);
+
+    for (int i = 0; i < objects.size(); ++i)
+    {
+        objects[i]->update(time);
+
+        glBufferSubData(GL_ARRAY_BUFFER, i * 16 * sizeof(GLfloat), 16 * sizeof(GLfloat), objects[i]->transform.elements);
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(shader->program);
+
+    glUniform1f(shader->uni_counter, time);
+
+    glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, objects.size());
 }
 
 /* Shader source codes */ /****************************************/
