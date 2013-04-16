@@ -672,16 +672,6 @@ skip_context:
     planet *terra = sol->add_planet(0.0f, 1.0f, 0.0f, 4.0f, 0.2f);
     moon *luna = terra->add_moon(0.2f, 0.0f, 0.0f, 5.0f, 0.3f);
 
-    glBindVertexArray(milky_way->format);
-
-    matrix m1 = translate(-7.5f, 2.5f, -15.0f);
-    matrix m2 = translate(0.0f, 0.0f, -5.0f);
-    matrix m3 = translate(2.5f, 5.0f, -10.0f);
-
-    glBufferSubData(GL_ARRAY_BUFFER, 0 * sizeof(GLfloat), 16 * sizeof(GLfloat), m1.elements);
-    glBufferSubData(GL_ARRAY_BUFFER, 16 * sizeof(GLfloat), 16 * sizeof(GLfloat), m2.elements);
-    glBufferSubData(GL_ARRAY_BUFFER, 32 * sizeof(GLfloat), 16 * sizeof(GLfloat), m3.elements);
-
     GLuint frame;
     GLuint render;
     GLuint textures[3];
