@@ -1224,6 +1224,7 @@ galaxy::~galaxy()
 
     glDeleteBuffers(1, &buffer_vertices);
     glDeleteBuffers(1, &buffer_indices);
+    glDeleteBuffers(1, &buffer_matrices);
 
     glDeleteVertexArrays(1, &format);
 
