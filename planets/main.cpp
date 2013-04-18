@@ -394,7 +394,7 @@ struct celestial
     galaxy *g;
     GLuint texture;
 
-    celestial(galaxy *g);
+    celestial(galaxy *g, GLuint texture = GL_NONE);
 
     virtual void update(GLfloat time) = 0;
 };
@@ -405,7 +405,7 @@ struct moon : celestial
 
     planet *p;
 
-    moon(galaxy *g, planet *p);
+    moon(galaxy *g, planet *p, GLuint texture = TEXTURE_MOON);
 
     virtual void update(GLfloat time);
 };
@@ -416,9 +416,9 @@ struct planet : celestial
 
     sun *p;
 
-    planet(galaxy *g, sun *p);
+    planet(galaxy *g, sun *p, GLuint texture = TEXTURE_EARTH);
 
-    moon *add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s);
+    moon *add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s, GLuint texture = TEXTURE_MOON);
     virtual void update(GLfloat time);
 };
 
@@ -426,9 +426,9 @@ struct sun : celestial
 {
     GLfloat tx, ty, tz, s;
 
-    sun(galaxy *g);
+    sun(galaxy *g, GLuint texture = TEXTURE_JUPITER);
 
-    planet *add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s);
+    planet *add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s, GLuint texture = TEXTURE_EARTH);
     virtual void update(GLfloat time);
 };
 
@@ -453,7 +453,7 @@ struct galaxy
     galaxy(shader_stage1 *shader);
     ~galaxy();
 
-    sun *add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s);
+    sun *add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s, GLuint texture = TEXTURE_JUPITER);
     void render(GLfloat time);
 };
 
@@ -689,6 +689,9 @@ skip_context:
     sun *sol = milky_way->add_sun(0.0f, 0.0f, -5.0f, 1.0f);
     planet *terra = sol->add_planet(0.0f, 1.0f, 0.0f, 4.0f, 0.2f);
     moon *luna = terra->add_moon(0.2f, 0.0f, 0.0f, 5.0f, 0.3f);
+    moon *luna2 = terra->add_moon(-0.2f, 3.0f, 0.0f, 7.0f, 0.4f);
+    planet *pluto = sol->add_planet(0.0f, -0.3f, 0.0f, 9.0f, 0.45f, TEXTURE_PLUTO);
+    planet *pluto2 = sol->add_planet(0.0f, 2.3f, 0.0f, 7.0f, 0.17f, TEXTURE_PLUTO);
 
     GLuint frame;
     GLuint render;
@@ -1066,10 +1069,10 @@ shader_stage2::~shader_stage2()
 
 /* Celestial methods */ /****************************************/
 
-celestial::celestial(galaxy *g)
+celestial::celestial(galaxy *g, GLuint texture)
 {
     this->g = g;
-    this->texture = GL_NONE;
+    this->texture = texture;
 
     g->objects.push_back(this);
 
@@ -1080,10 +1083,9 @@ celestial::celestial(galaxy *g)
     glBindVertexArray(GL_NONE);
 }
 
-moon::moon(galaxy *g, planet *p) : celestial(g)
+moon::moon(galaxy *g, planet *p, GLuint texture) : celestial(g, texture)
 {
     this->p = p;
-    this->texture = TEXTURE_MOON;
 }
 
 void moon::update(GLfloat time)
@@ -1091,10 +1093,9 @@ void moon::update(GLfloat time)
     transform = p->transform * rotate(time * rx, time * ry, time * rz) * translate(0.0f, 0.0f, d) * scale(s);
 }
 
-planet::planet(galaxy *g, sun *p) : celestial(g)
+planet::planet(galaxy *g, sun *p, GLuint texture) : celestial(g, texture)
 {
     this->p = p;
-    this->texture = TEXTURE_EARTH;
 }
 
 void planet::update(GLfloat time)
@@ -1102,9 +1103,9 @@ void planet::update(GLfloat time)
     transform = p->transform * rotate(time * rx, time * ry, time * rz) * translate(0.0f, 0.0f, d) * scale(s);
 }
 
-moon *planet::add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
+moon *planet::add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s, GLuint texture)
 {
-    moon *object = new moon(g, this);
+    moon *object = new moon(g, this, texture);
 
     object->rx = rx;
     object->ry = ry;
@@ -1115,9 +1116,8 @@ moon *planet::add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
     return object;
 }
 
-sun::sun(galaxy *g) : celestial(g)
+sun::sun(galaxy *g, GLuint texture) : celestial(g, texture)
 {
-    this->texture = TEXTURE_JUPITER;
 }
 
 void sun::update(GLfloat time)
@@ -1125,9 +1125,9 @@ void sun::update(GLfloat time)
     transform = translate(tx, ty, tz) * scale(s);
 }
 
-planet *sun::add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
+planet *sun::add_planet(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s, GLuint texture)
 {
-    planet *object = new planet(g, this);
+    planet *object = new planet(g, this, texture);
 
     object->rx = rx;
     object->ry = ry;
@@ -1304,9 +1304,9 @@ galaxy::~galaxy()
     }
 }
 
-sun *galaxy::add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s)
+sun *galaxy::add_sun(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat s, GLuint texture)
 {
-    sun *object = new sun(this);
+    sun *object = new sun(this, texture);
 
     object->tx = tx;
     object->ty = ty;
