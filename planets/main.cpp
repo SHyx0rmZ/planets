@@ -1505,7 +1505,7 @@ const GLchar *shader_stage2::source_fragment = "\
                                                #version 330 core\n\
                                                \n\
                                                in vec2 vf_texcoord;\n\
-                                                     \n\
+                                               \n\
                                                out vec4 r_color;\n\
                                                \n\
                                                uniform sampler2D uni_color;\n\
@@ -1514,20 +1514,13 @@ const GLchar *shader_stage2::source_fragment = "\
                                                \n\
                                                void main()\n\
                                                {\n\
-                                                   vec2 texcoord = vf_texcoord * 2.0;\n\
+                                                   vec3 position = texture(uni_position, vf_texcoord).rgb;\n\
+                                                   vec3 normal = texture(uni_normal, vf_texcoord).rgb;\n\
+                                                   vec4 diffuse = vec4(texture(uni_color, vf_texcoord).rgb, 1.0);\n\
                                                    \n\
-                                                   if (vf_texcoord.s >= 0.5)\n\
-                                                       if (vf_texcoord.t >= 0.5)\n\
-                                                           r_color = texture(uni_position, texcoord);\n\
-                                                       else\n\
-                                                       {\n\
-                                                           vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - texture(uni_position, texcoord).xyz);\n\
-                                                           r_color = clamp(max(dot(light, texture(uni_normal, texcoord).xyz), 0.0) * texture(uni_color, texcoord), 0.0, 1.0);\n\
-                                                       }\n\
-                                                   else if (vf_texcoord.t >= 0.5)\n\
-                                                       r_color = texture(uni_color, texcoord);\n\
-                                                   else\n\
-                                                       r_color = texture(uni_normal, texcoord);\n\
+                                                   vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - position);\n\
+                                                   \n\
+                                                   r_color = clamp(max(dot(light, normal), 0.0) * diffuse, 0.0, 1.0);\n\
                                                }\n\
                                                ";
 
