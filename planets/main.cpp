@@ -664,7 +664,7 @@ skip_context:
 
     celestial *sol = milky_way->add_sun(0.0f, 0.0f, -5.0f, 1.0f);
     celestial *terra = sol->add_child(0.0f, 1.0f, 0.0f, 4.0f, 0.2f, 0.0f, 0.0f, 0.0f, TEXTURE_EARTH);
-    celestial *luna = terra->add_child(0.2f, 0.0f, 0.0f, 5.0f, 0.3f, 0.0f, 0.0f, 0.0f);
+    celestial *luna = terra->add_child(0.8f, 0.0f, 0.0f, 5.0f, 0.3f, 0.0f, 0.0f, 0.0f);
     celestial *luna2 = terra->add_child(0.0f, 3.0f, 0.0f, 7.0f, 0.4f, 0.2f, 0.0f, 0.0f);
     celestial *pluto = sol->add_child(0.0f, -0.3f, 0.0f, 9.0f, 0.45f, 0.0f, 0.0f, 0.0f, TEXTURE_PLUTO);
     celestial *pluto2 = sol->add_child(0.0f, 2.3f, 0.0f, 7.0f, 0.17f, 0.3f, 0.0f, 0.0f, TEXTURE_EARTH);
@@ -918,7 +918,7 @@ shader_stage1::shader_stage1()
     uni_earth_moon = glGetUniformLocation(program, "uni_earth_moon");
     uni_pluto_jupiter = glGetUniformLocation(program, "uni_pluto_jupiter");
 
-    matrix matrix_perspective = perspective(0.1f, 1000.0f, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 75.0f);
+    matrix matrix_perspective = perspective(0.1f, 1000.0f, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 75.0f) * translate(0.0f, 0.0f, -10.0f) * rotate(-0.4f, 0.0f, 0.0f);
 
     glUseProgram(program);
 
@@ -1210,8 +1210,8 @@ galaxy::galaxy(shader_stage1 *shader)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glActiveTexture(GL_TEXTURE1);
 
@@ -1221,8 +1221,8 @@ galaxy::galaxy(shader_stage1 *shader)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 galaxy::~galaxy()
@@ -1525,7 +1525,7 @@ const GLchar *shader_stage2::source_fragment = "\
                                                    \n\
                                                    vec3 light = normalize(uni_light - position);\n\
                                                    \n\
-                                                   r_color = clamp(max(dot(light, normal), 0.0) * diffuse, 0.0, 1.0);\n\
+                                                   r_color = clamp(max(dot(light, normal), 0.0), 0.1, 1.0) * diffuse;\n\
                                                }\n\
                                                ";
 
