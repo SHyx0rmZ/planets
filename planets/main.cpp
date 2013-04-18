@@ -854,8 +854,8 @@ matrix perspective(GLfloat cnear, GLfloat cfar, GLfloat width, GLfloat height, G
 {
     matrix result;
 
-    result.elements[ 0] = (2.0f * cnear / (2.0f * cnear * tanf(fov * M_PI / 360.0f))) / (width / height);
-    result.elements[ 5] = (2.0f * cnear / (2.0f * cnear * tanf(fov * M_PI / 360.0f)));
+    result.elements[ 0] = (2.0f * cnear / (2.0f * cnear * tanf(fov * static_cast<GLfloat>(M_PI) / 360.0f))) / (width / height);
+    result.elements[ 5] = (2.0f * cnear / (2.0f * cnear * tanf(fov * static_cast<GLfloat>(M_PI) / 360.0f)));
     result.elements[10] = -(cfar + cnear) / (cfar - cnear);
     result.elements[11] = -1.0f;
     result.elements[14] = -2.0f * (cfar * cnear) / (cfar - cnear);
@@ -885,9 +885,9 @@ shader_stage1::shader_stage1()
     shader_fragment = glCreateShader(GL_FRAGMENT_SHADER);
     program = glCreateProgram();
 
-    GLint length_vertex = strlen(source_vertex);
-    GLint length_geometry = strlen(source_geometry);
-    GLint length_fragment = strlen(source_fragment);
+    GLint length_vertex = static_cast<GLint>(strlen(source_vertex));
+    GLint length_geometry = static_cast<GLint>(strlen(source_geometry));
+    GLint length_fragment = static_cast<GLint>(strlen(source_fragment));
 
     glShaderSource(shader_vertex, 1, &source_vertex, &length_vertex);
     glShaderSource(shader_geometry, 1, &source_geometry, &length_geometry);
@@ -918,7 +918,7 @@ shader_stage1::shader_stage1()
     uni_earth_moon = glGetUniformLocation(program, "uni_earth_moon");
     uni_pluto_jupiter = glGetUniformLocation(program, "uni_pluto_jupiter");
 
-    matrix matrix_perspective = perspective(0.1f, 1000.0f, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 75.0f) * translate(0.0f, 0.0f, -10.0f) * rotate(-0.4f, 0.0f, 0.0f);
+    matrix matrix_perspective = perspective(0.1f, 1000.0f, static_cast<GLfloat>(GetSystemMetrics(SM_CXSCREEN)), static_cast<GLfloat>(GetSystemMetrics(SM_CYSCREEN)), 75.0f) * translate(0.0f, 0.0f, -10.0f) * rotate(-0.4f, 0.0f, 0.0f);
 
     glUseProgram(program);
 
@@ -951,8 +951,8 @@ shader_stage2::shader_stage2()
     shader_fragment = glCreateShader(GL_FRAGMENT_SHADER);
     program = glCreateProgram();
 
-    GLint length_vertex = strlen(source_vertex);
-    GLint length_fragment = strlen(source_fragment);
+    GLint length_vertex = static_cast<GLint>(strlen(source_vertex));
+    GLint length_fragment = static_cast<GLint>(strlen(source_fragment));
 
     glShaderSource(shader_vertex, 1, &source_vertex, &length_vertex);
     glShaderSource(shader_fragment, 1, &source_fragment, &length_fragment);
@@ -1257,7 +1257,7 @@ galaxy::~galaxy()
 
     glDeleteVertexArrays(1, &format);
 
-    for (int i = 0; i < objects.size(); ++i)
+    for (unsigned int i = 0; i < objects.size(); ++i)
     {
         delete objects[i];
     }
@@ -1279,7 +1279,7 @@ void galaxy::render(GLfloat time)
 {
     glBindVertexArray(format);
 
-    for (int i = 0; i < objects.size(); ++i)
+    for (unsigned int i = 0; i < objects.size(); ++i)
     {
         objects[i]->update(time);
 
@@ -1302,7 +1302,7 @@ void galaxy::render(GLfloat time)
 
     glBindTexture(GL_TEXTURE_2D, texture_pluto_jupiter);
 
-    glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, objects.size());
+    glDrawElementsInstanced(GL_TRIANGLES, 60, GL_UNSIGNED_INT, NULL, static_cast<GLsizei>(objects.size()));
 }
 
 /* Shader source codes */ /****************************************/
