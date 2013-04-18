@@ -17,6 +17,11 @@ bool alive = true;
 #define TEXTURE_POSITION 1
 #define TEXTURE_NORMAL   2
 
+#define TEXTURE_MOON    2
+#define TEXTURE_EARTH   3
+#define TEXTURE_JUPITER 4
+#define TEXTURE_PLUTO   5
+
 namespace gl
 {
     HMODULE opengl = NULL;
@@ -139,6 +144,7 @@ BIND(GLvoid, glVertexAttribPointer, GLuint, GLsizei, GLenum, GLboolean, GLsizei,
 #define GL_UNSIGNED_INT         0x1405
 #define GL_FLOAT                0x1406
 #define GL_UNSIGNED_SHORT_5_6_5 0x8363
+BIND(GLvoid, glVertexAttribIPointer, GLuint, GLsizei, GLenum, GLsizei, const GLvoid *);
 BIND(GLvoid, glVertexAttribDivisor, GLuint, GLuint);
 
 BIND(GLuint, glCreateShader, GLuint);
@@ -341,9 +347,12 @@ struct shader_stage1
     GLint att_color;
     GLint att_normal;
     GLint att_matrix;
+    GLint att_texture;
 
     GLint uni_perspective;
     GLint uni_counter;
+    GLint uni_earth_moon;
+    GLint uni_pluto_jupiter;
 
     shader_stage1();
     ~shader_stage1();
@@ -383,6 +392,7 @@ struct celestial
 {
     matrix transform;
     galaxy *g;
+    GLuint texture;
 
     celestial(galaxy *g);
 
@@ -921,9 +931,12 @@ shader_stage1::shader_stage1()
     att_color = glGetAttribLocation(program, "att_color");
     att_normal = glGetAttribLocation(program, "att_normal");
     att_matrix = glGetAttribLocation(program, "att_matrix");
+    att_texture = glGetAttribLocation(program, "att_texture");
 
     uni_perspective = glGetUniformLocation(program, "uni_perspective");
     uni_counter = glGetUniformLocation(program, "uni_counter");
+    uni_earth_moon = glGetUniformLocation(program, "uni_earth_moon");
+    uni_pluto_jupiter = glGetUniformLocation(program, "uni_pluto_jupiter");
 
     matrix matrix_perspective = perspective(0.1f, 1000.0f, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 75.0f);
 
@@ -931,6 +944,8 @@ shader_stage1::shader_stage1()
 
     glUniformMatrix4fv(uni_perspective, 1, GL_FALSE, matrix_perspective.elements);
     glUniform1f(uni_counter, 0.0f);
+    glUniform1i(uni_earth_moon, GL_TEXTURE0 - GL_TEXTURE0);
+    glUniform1i(uni_pluto_jupiter, GL_TEXTURE1 - GL_TEXTURE0);
 
     glUseProgram(GL_NONE);
 }
@@ -1054,12 +1069,13 @@ shader_stage2::~shader_stage2()
 celestial::celestial(galaxy *g)
 {
     this->g = g;
+    this->texture = GL_NONE;
 
     g->objects.push_back(this);
 
     glBindVertexArray(g->format);
 
-    glBufferData(GL_ARRAY_BUFFER, g->objects.size() * 16 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, g->objects.size() * (16 * sizeof(GLfloat) + sizeof(GLuint)), NULL, GL_STREAM_DRAW);
 
     glBindVertexArray(GL_NONE);
 }
@@ -1067,6 +1083,7 @@ celestial::celestial(galaxy *g)
 moon::moon(galaxy *g, planet *p) : celestial(g)
 {
     this->p = p;
+    this->texture = TEXTURE_MOON;
 }
 
 void moon::update(GLfloat time)
@@ -1077,6 +1094,7 @@ void moon::update(GLfloat time)
 planet::planet(galaxy *g, sun *p) : celestial(g)
 {
     this->p = p;
+    this->texture = TEXTURE_EARTH;
 }
 
 void planet::update(GLfloat time)
@@ -1099,6 +1117,7 @@ moon *planet::add_moon(GLfloat rx, GLfloat ry, GLfloat rz, GLfloat d, GLfloat s)
 
 sun::sun(galaxy *g) : celestial(g)
 {
+    this->texture = TEXTURE_JUPITER;
 }
 
 void sun::update(GLfloat time)
@@ -1201,20 +1220,23 @@ galaxy::galaxy(shader_stage1 *shader)
 
     glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
 
-    glVertexAttribPointer(shader->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), NULL);
-    glVertexAttribPointer(shader->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 4);
-    glVertexAttribPointer(shader->att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 8);
-    glVertexAttribPointer(shader->att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat), reinterpret_cast<GLfloat *>(NULL) + 12);
+    glVertexAttribPointer(shader->att_matrix, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat) + sizeof(GLuint), NULL);
+    glVertexAttribPointer(shader->att_matrix + 1, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat) + sizeof(GLuint), reinterpret_cast<GLfloat *>(NULL) + 4);
+    glVertexAttribPointer(shader->att_matrix + 2, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat) + sizeof(GLuint), reinterpret_cast<GLfloat *>(NULL) + 8);
+    glVertexAttribPointer(shader->att_matrix + 3, 4, GL_FLOAT, GL_FALSE, 16 * sizeof(GLfloat) + sizeof(GLuint), reinterpret_cast<GLfloat *>(NULL) + 12);
+    glVertexAttribIPointer(shader->att_texture, 1, GL_UNSIGNED_INT, 16 * sizeof(GLfloat) + sizeof(GLuint), reinterpret_cast<GLfloat *>(NULL) + 16);
 
     glVertexAttribDivisor(shader->att_matrix, 1);
     glVertexAttribDivisor(shader->att_matrix + 1, 1);
     glVertexAttribDivisor(shader->att_matrix + 2, 1);
     glVertexAttribDivisor(shader->att_matrix + 3, 1);
+    glVertexAttribDivisor(shader->att_texture, 1);
 
     glEnableVertexAttribArray(shader->att_matrix);
     glEnableVertexAttribArray(shader->att_matrix + 1);
     glEnableVertexAttribArray(shader->att_matrix + 2);
     glEnableVertexAttribArray(shader->att_matrix + 3);
+    glEnableVertexAttribArray(shader->att_texture);
 
     glBindVertexArray(GL_NONE);
 
@@ -1259,6 +1281,7 @@ galaxy::~galaxy()
     glDisableVertexAttribArray(shader->att_matrix + 1);
     glDisableVertexAttribArray(shader->att_matrix + 2);
     glDisableVertexAttribArray(shader->att_matrix + 3);
+    glDisableVertexAttribArray(shader->att_texture);
 
     glDisableVertexAttribArray(shader->att_vertex);
     glDisableVertexAttribArray(shader->att_normal);
@@ -1301,7 +1324,9 @@ void galaxy::render(GLfloat time)
     {
         objects[i]->update(time);
 
-        glBufferSubData(GL_ARRAY_BUFFER, i * 16 * sizeof(GLfloat), 16 * sizeof(GLfloat), objects[i]->transform.elements);
+        glBufferSubData(GL_ARRAY_BUFFER, i * (16 * sizeof(GLfloat) + sizeof(GLuint)), 16 * sizeof(GLfloat), objects[i]->transform.elements);
+
+        glBufferSubData(GL_ARRAY_BUFFER, i * (16 * sizeof(GLfloat) + sizeof(GLuint)) + 16 * sizeof(GLfloat), sizeof(GLuint), &objects[i]->texture);
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1331,12 +1356,14 @@ const GLchar *shader_stage1::source_vertex = "\
                                              in vec3 att_color;\n\
                                              in mat4 att_matrix;\n\
                                              in vec3 att_normal;\n\
+                                             in uint att_texture;\n\
                                              \n\
                                              out vec3 vg_color;\n\
                                              out vec3 vg_normal;\n\
                                              out vec3 vg_position;\n\
                                              out mat4 vg_matrix;\n\
                                              out mat4 vg_perspective;\n\
+                                             out uint vg_texture;\n\
                                              \n\
                                              uniform mat4 uni_perspective;\n\
                                              uniform float uni_counter;\n\
@@ -1356,6 +1383,7 @@ const GLchar *shader_stage1::source_vertex = "\
                                                  vg_position = att_vertex;\n\
                                                  vg_matrix = att_matrix * rotate;\n\
                                                  vg_perspective = uni_perspective;\n\
+                                                 vg_texture = att_texture;\n\
                                              }\
                                              ";
 
@@ -1371,11 +1399,13 @@ const GLchar *shader_stage1::source_geometry = "\
                                                 in vec3 vg_color[];\n\
                                                 in mat4 vg_matrix[];\n\
                                                 in mat4 vg_perspective[];\n\
+                                                in uint vg_texture[];\n\
                                                 \n\
                                                 out vec3 gf_normal;\n\
                                                 out vec3 gf_position;\n\
                                                 out vec3 gf_color;\n\
                                                 out vec3 gf_texcoord;\n\
+                                                flat out uint gf_texture;\n\
                                                 \n\
                                                 void main()\n\
                                                 {\n\
@@ -1399,6 +1429,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 0.0, 0.0);\n\
                                                     gf_texcoord = vg_normal[0];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
@@ -1406,6 +1437,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 1.0, 0.0);\n\
                                                     gf_texcoord = normal[0];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[2], 1.0);\n\
@@ -1413,6 +1445,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(position[2], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 0.0, 1.0);\n\
                                                     gf_texcoord = normal[2];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[1], 1.0);\n\
@@ -1420,6 +1453,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 1.0);\n\
                                                     gf_texcoord = normal[1];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[2], 1.0);\n\
@@ -1427,6 +1461,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[2], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 0.0, 1.0);\n\
                                                     gf_texcoord = vg_normal[2];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     EndPrimitive();\n\
@@ -1436,6 +1471,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 1.0);\n\
                                                     gf_texcoord = normal[1];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(position[0], 1.0);\n\
@@ -1443,6 +1479,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(position[0], 1.0)).xyz;\n\
                                                     gf_color = vec3(1.0, 1.0, 0.0);\n\
                                                     gf_texcoord = normal[0];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     gl_Position = vg_perspective[0] * vg_matrix[0] * vec4(vg_position[1], 1.0);\n\
@@ -1450,6 +1487,7 @@ const GLchar *shader_stage1::source_geometry = "\
                                                     gf_position = (vg_matrix[0] * vec4(vg_position[1], 1.0)).xyz;\n\
                                                     gf_color = vec3(0.0, 1.0, 0.0);\n\
                                                     gf_texcoord = vg_normal[1];\n\
+                                                    gf_texture = vg_texture[0];\n\
                                                     EmitVertex();\n\
                                                     \n\
                                                     EndPrimitive();\n\
@@ -1464,6 +1502,7 @@ const GLchar *shader_stage1::source_fragment = "\
                                                in vec3 gf_normal;\n\
                                                in vec3 gf_position;\n\
                                                in vec3 gf_texcoord;\n\
+                                               flat in uint gf_texture;\n\
                                                \n\
                                                out vec3 r_color;\n\
                                                out vec3 r_normal;\n\
@@ -1475,8 +1514,15 @@ const GLchar *shader_stage1::source_fragment = "\
                                                void main()\n\
                                                {\n\
                                                    vec2 texcoord = normalize(gf_texcoord).xy * 0.5 + vec2(0.5, 0.5);\n\
-                                                   texcoord.y = texcoord.y * 0.5 + 0.5;\n\
-                                                   r_color = texture(uni_earth_moon, texcoord).rgb;\n\
+                                                   texcoord.y = texcoord.y * 0.5;\n\
+                                                   if (gf_texture % 2u == 1u)\n\
+                                                       texcoord.y = texcoord.y + 0.5;\n\
+                                                   if ((gf_texture / 2u) == 1u)\n\
+                                                       r_color = texture(uni_earth_moon, texcoord).rgb;\n\
+                                                   else if ((gf_texture / 2u) == 2u)\n\
+                                                       r_color = texture(uni_pluto_jupiter, texcoord).rgb;\n\
+                                                   else\n\
+                                                       r_color = vec3(1.0, 0.0, 1.0);\n\
                                                    r_normal = gf_normal;\n\
                                                    r_position = gf_position;\n\
                                                }\
