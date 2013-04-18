@@ -169,6 +169,7 @@ BIND(GLvoid, glBindFragDataLocation, GLuint, GLuint, const GLchar *);
 BIND(GLvoid, glUniformMatrix4fv, GLint, GLsizei, GLboolean, const GLfloat *);
 BIND(GLvoid, glUniform1f, GLint, GLfloat);
 BIND(GLvoid, glUniform1i, GLint, GLint);
+BIND(GLvoid, glUniform3f, GLint, GLfloat, GLfloat, GLfloat);
 
 BIND(GLvoid, glDrawElements, GLenum, GLsizei, GLenum, const GLvoid *);
 #define GL_TRIANGLES 0x0004
@@ -379,6 +380,7 @@ struct shader_stage2
     GLint uni_color;
     GLint uni_position;
     GLint uni_normal;
+    GLint uni_light;
 
     shader_stage2();
     ~shader_stage2();
@@ -740,6 +742,7 @@ skip_context:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBindVertexArray(stage2->format);
         glUseProgram(stage2->program);
+        glUniform3f(stage2->uni_light, 2.5f, sin(counter * 0.025f) * 5.0f + 1.5f, 0.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
         SwapBuffers(device);
@@ -970,6 +973,7 @@ shader_stage2::shader_stage2()
     uni_color = glGetUniformLocation(program, "uni_color");
     uni_position = glGetUniformLocation(program, "uni_position");
     uni_normal = glGetUniformLocation(program, "uni_normal");
+    uni_light = glGetUniformLocation(program, "uni_light");
 
     matrix matrix_orthogonal = orthogonal(0.1f, 1000.0f, 1.0f, 1.0f) * translate(-0.5f, -0.5f, 0.0f);
 
@@ -1511,6 +1515,7 @@ const GLchar *shader_stage2::source_fragment = "\
                                                uniform sampler2D uni_color;\n\
                                                uniform sampler2D uni_position;\n\
                                                uniform sampler2D uni_normal;\n\
+                                               uniform vec3 uni_light;\n\
                                                \n\
                                                void main()\n\
                                                {\n\
@@ -1518,7 +1523,7 @@ const GLchar *shader_stage2::source_fragment = "\
                                                    vec3 normal = texture(uni_normal, vf_texcoord).rgb;\n\
                                                    vec4 diffuse = vec4(texture(uni_color, vf_texcoord).rgb, 1.0);\n\
                                                    \n\
-                                                   vec3 light = normalize(vec3(-10.0, 0.0, -5.0) - position);\n\
+                                                   vec3 light = normalize(uni_light - position);\n\
                                                    \n\
                                                    r_color = clamp(max(dot(light, normal), 0.0) * diffuse, 0.0, 1.0);\n\
                                                }\n\
